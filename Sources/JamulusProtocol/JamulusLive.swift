@@ -8,109 +8,142 @@ import UdpConnection
 /// Jamulus connection to a remote server
 ///
 extension JamulusProtocol {
+  
+  ///
+  /// An implementation of the protocol for real live use.
+  ///
   public static func live(
     url: URL,
     serverKind: ConnectionKind,
     queue: DispatchQueue = .global(qos: .userInteractive)) -> JamulusProtocol? {
-    let autoPingType = AutoPingType.initWith(serverKind)
-    guard let connection = UdpConnection.live(url: url, queue: queue) else {
-      assertionFailure("Failed to open network connection")
-      return nil
-    }
-    
-    // Maintain packet sequence
-    var packetSequence: UInt8 = 0 // For UDP reconstruction
-    var packetSequenceNext: UInt8 { nextSequenceNumber(val: &packetSequence) }
-    var audioPacketSequence: UInt8 = 0 // For UDP reconstruction
-    var audioPacketSequenceNext: UInt8 { nextSequenceNumber(val: &audioPacketSequence) }
-    
-    // Keep alive for the channel
-    var pingCancellable: AnyCancellable?
-    
-    
-    return JamulusProtocol(
-      open: connection.statePublisher
-        .handleEvents(receiveCancel: {
-          pingCancellable?.cancel()
-          connection.cancel()
-        })
-        .mapError({ JamulusError.networkError($0) })
-        .map({ ConnectionState(rawValue: $0) })
-        .eraseToAnyPublisher(),
-      receiveDataPublisher: {
-        let publisher = PassthroughSubject<JamulusPacket, Never>()
-        
-        let packetReceiver = connection.receiveDataPublisher
-          .handleEvents(
-            receiveSubscription: { _ in
-              pingCancellable = Timer.publish(every: 1, on: .main, in: .default)
-                .autoconnect()
-                .sink { _ in
-                  switch autoPingType {
-                  case .ping:
-                    connection.send(
-                      messageToData(message: .ping(),
-                                    nextSeq: packetSequenceNext))
-                  case .pingClientCount:
-                    connection.send(
-                      messageToData(message: .pingPlusClientCount(),
-                                    nextSeq: packetSequenceNext))
-                  case .none:
-                    break
-                  }
-                }
-            }
-          )
-          .map({ parseData(data: $0, defaultHost: connection.remoteHost) })
-          .sink(
-            receiveCompletion: { completion in
-              
-            },
-            receiveValue: { packet in
-              switch packet {
-              case .messageNeedingAck(let message, let seq):
-                let ackMessage = JamulusMessage.ack(ackType: message.messageId,
-                                                    sequenceNumber: seq)
-                connection.send(
-                  messageToData(message: ackMessage,
-                                nextSeq: packetSequenceNext))
-              default:
-                break
-              }
-              
-              // Forward packet up
-              publisher.send(packet)
-            }
-          )
-        
-        return publisher
-          .handleEvents(
-            receiveSubscription: { subscriber in
-              
-            },
-            receiveCancel: {
-              packetReceiver.cancel()
-            })
-          .eraseToAnyPublisher()
-      }(),
-      send: { message in
-        if message.needsAck {
-          // TODO: track acks / retransmits
-        }
-        let data = messageToData(message: message, nextSeq: packetSequenceNext)
-        connection.send(data)
-      },
-      sendAudio: {
-        if $1 {
-          var data = $0
-          data.append(audioPacketSequenceNext)
-          connection.send(data)
-        } else {
-          connection.send($0)
-        }
+      
+      let autoPingType = AutoPingType.initWith(serverKind)
+      guard let connection = UdpConnection.live(url: url, queue: queue) else {
+        assertionFailure("Failed to open network connection")
+        return nil
       }
-    )
-  }
+      
+      // Maintain packet sequence
+      var packetSequence: UInt8 = 0 // For UDP reconstruction
+      var packetSequenceNext: UInt8 { nextSequenceNumber(val: &packetSequence) }
+      var audioPacketSequence: UInt8 = 0 // For UDP reconstruction
+      var audioPacketSequenceNext: UInt8 { nextSequenceNumber(val: &audioPacketSequence) }
+      
+      // Keep alive for the channel
+      var pingCancellable: AnyCancellable?
+      
+      // Retransmit Queues for packets requiring acks
+      var ackRequiredPackets = [TimeInterval: (seq: UInt8, message: JamulusMessage)]()
+      
+      return JamulusProtocol(
+        open: connection.statePublisher
+          .handleEvents(receiveCancel: {
+            pingCancellable?.cancel()
+            connection.cancel()
+          })
+          .mapError({ JamulusError.networkError($0) })
+          .map({ ConnectionState(rawValue: $0) })
+          .eraseToAnyPublisher(),
+        receiveDataPublisher: {
+          let publisher = PassthroughSubject<JamulusPacket, Never>()
+          
+          let packetReceiver = connection.receiveDataPublisher
+            .handleEvents(
+              receiveSubscription: { _ in
+                pingCancellable = Timer.publish(every: 1, on: .main, in: .default)
+                  .autoconnect()
+                  .sink { _ in
+                    switch autoPingType {
+                    case .ping:
+                      connection.send(
+                        messageToData(message: .ping(),
+                                      nextSeq: packetSequenceNext))
+                    case .pingClientCount:
+                      connection.send(
+                        messageToData(message: .pingPlusClientCount(),
+                                      nextSeq: packetSequenceNext))
+                    case .none:
+                      break
+                    }
+                    
+                    // Handle any retransmit of un-acked packets
+                    let now = Date().timeIntervalSince1970
+                    let packetKeys = ackRequiredPackets.keys.sorted()
+                      .filter({ $0 < now - ApiConsts.retransmitTimeout })
+                    for key in packetKeys {
+                      if let packet = ackRequiredPackets[key] {
+                        connection.send(
+                          messageToData(message: packet.message,
+                                        nextSeq: packet.seq)
+                        )
+                      }
+                    }
+                  }
+              }
+            )
+            .map({ parseData(data: $0, defaultHost: connection.remoteHost) })
+            .sink(
+              receiveCompletion: { completion in
+                
+              },
+              receiveValue: { packet in
+                switch packet {
+                case let .ackMessage(ackType, sequenceNumber):
+                  // An acked packet should be removed from the retransmit queue
+                  let found = ackRequiredPackets.first(where: {
+                    $0.value.message.messageId == ackType &&
+                    $0.value.seq == sequenceNumber
+                  })
+                  
+                  if let key = found?.key {
+                    ackRequiredPackets[key] = nil
+                  }
+                  
+                case .messageNeedingAck(let message, let seq):
+                  let ackMessage = JamulusMessage.ack(ackType: message.messageId,
+                                                      sequenceNumber: seq)
+                  connection.send(
+                    messageToData(message: ackMessage,
+                                  nextSeq: packetSequenceNext))
+                default:
+                  break
+                }
+                
+                // Forward packet up
+                publisher.send(packet)
+              }
+            )
+          
+          return publisher
+            .handleEvents(
+              receiveSubscription: { subscriber in
+                
+              },
+              receiveCancel: {
+                packetReceiver.cancel()
+              })
+            .eraseToAnyPublisher()
+        }(),
+        send: { message in
+          let sequenceNumber = packetSequenceNext
+          if message.needsAck {
+            // Store message, remove when acked
+            ackRequiredPackets[Date().timeIntervalSince1970] = (sequenceNumber, message)
+          }
+          let data = messageToData(message: message, nextSeq: sequenceNumber)
+          connection.send(data)
+        },
+        sendAudio: {
+          if $1 {
+            var data = $0
+            data.append(audioPacketSequenceNext)
+            connection.send(data)
+          } else {
+            connection.send($0)
+          }
+        }
+      )
+    }
 }
 
 func nextSequenceNumber(val: inout UInt8) -> UInt8 {
@@ -164,6 +197,14 @@ func parseData(data: Data, defaultHost: String) -> JamulusPacket {
          let message = JamulusMessage.deserialize(from: dataPacket,
                                                   defaultHost: defaultHost) {
         let sequence = data[4]
+        
+        switch message {
+        case .ack(let ackType, let sequenceNumber):
+          return .ackMessage(ackType: ackType, sequenceNumber: sequenceNumber)
+          
+        default:
+          break
+        }
         return message.needsAck ?
           .messageNeedingAck(message, sequence) :
           .messageNoAck(message)

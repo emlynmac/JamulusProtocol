@@ -20,6 +20,7 @@ public enum ConnectionKind {
 }
 
 public enum JamulusPacket: Equatable {
+  case ackMessage(ackType: UInt16, sequenceNumber: UInt8)
   case messageNeedingAck(JamulusMessage, UInt8)
   case messageNoAck(JamulusMessage)
   case audio(Data)

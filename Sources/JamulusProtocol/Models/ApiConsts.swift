@@ -10,6 +10,7 @@ public enum ApiConsts {
   public static let packetDataStartOffset = packetHeaderSizeWithoutChecksum
   public static let messageIdNoAckStart = 1000   // Don't ack messages above this
   public static let messageIdAckStart = 9
+  public static let retransmitTimeout: TimeInterval = 1
 }
 
 public enum OpusCompressedSize: UInt32 {
