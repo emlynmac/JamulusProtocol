@@ -17,7 +17,6 @@ extension JamulusProtocol {
     serverKind: ConnectionKind,
     queue: DispatchQueue = .global(qos: .userInteractive)) -> JamulusProtocol? {
       
-      let autoPingType = AutoPingType.initWith(serverKind)
       guard let connection = UdpConnection.live(url: url, queue: queue) else {
         assertionFailure("Failed to open network connection")
         return nil
@@ -29,42 +28,96 @@ extension JamulusProtocol {
       var audioPacketSequence: UInt8 = 0 // For UDP reconstruction
       var audioPacketSequenceNext: UInt8 { nextSequenceNumber(val: &audioPacketSequence) }
       
-      // Keep alive for the channel
-      var pingCancellable: AnyCancellable?
-      
-      // Retransmit Queues for packets requiring acks
+      // Retransmit un-acked packets
       var ackRequiredPackets = [TimeInterval: (seq: UInt8, message: JamulusMessage)]()
+      var retransmitPeriodic: AnyCancellable?
       
+      // Last seen packet time and state
+      var lastPingSent: TimeInterval = 0
+      var lastPingReceived: TimeInterval = 0
+      var keepAlive: AnyCancellable?
+      let statePublisher = PassthroughSubject<JamulusState, JamulusError>()
+  
       return JamulusProtocol(
-        open: connection.statePublisher
-          .handleEvents(receiveCancel: {
-            pingCancellable?.cancel()
-            connection.cancel()
-          })
-          .mapError({ JamulusError.networkError($0) })
-          .map({ ConnectionState(rawValue: $0) })
-          .eraseToAnyPublisher(),
+        open: { chanInfo in
+
+          // On the underlying UDP connection, start a keep alive for state
+          connection.statePublisher
+            .handleEvents(
+              receiveSubscription: { _ in
+                
+              },
+              receiveCancel: {
+                keepAlive?.cancel()
+              }
+            )
+            .mapError({ JamulusError.networkError($0) })
+            .map({ nwState in
+              switch nwState {
+
+              case .setup:
+                break
+                
+              case .waiting(_):
+                break
+                
+              case .preparing:
+                break
+                
+              case .ready:
+                keepAlive = Timer.publish(every: 1, on: .main, in: .default)
+                  .autoconnect()
+                  .sink { _ in
+                    guard Date().timeIntervalSince1970 < lastPingReceived + 15 else {
+                      // No connection
+                      statePublisher.send(.disconnected)
+                      return
+                    }
+                    
+                    switch serverKind {
+                    case .mainServer:
+                      connection.send(
+                        messageToData(message: .ping(),
+                                      nextSeq: packetSequenceNext))
+                      lastPingSent = Date().timeIntervalSince1970
+                    case .listing:
+                      connection.send(
+                        messageToData(message: .pingPlusClientCount(),
+                                      nextSeq: packetSequenceNext))
+                      lastPingSent = Date().timeIntervalSince1970
+                      
+                    case .directoryLookup:
+                      break
+                    }
+                  }
+                
+              case .failed(let error):
+                statePublisher.send(
+                  completion: .failure(JamulusError.networkError(error))
+              )
+              case .cancelled:
+                break
+                
+              default:
+                break
+              }
+            })
+          
+          defer {
+            statePublisher.send(.connecting)
+          }
+          return statePublisher.eraseToAnyPublisher()
+        },
         receiveDataPublisher: {
           let publisher = PassthroughSubject<JamulusPacket, Never>()
           
           let packetReceiver = connection.receiveDataPublisher
             .handleEvents(
               receiveSubscription: { _ in
-                pingCancellable = Timer.publish(every: 1, on: .main, in: .default)
+                retransmitPeriodic = Timer.publish(every: 2, on: .main, in: .default)
                   .autoconnect()
                   .sink { _ in
-                    switch autoPingType {
-                    case .ping:
-                      connection.send(
-                        messageToData(message: .ping(),
-                                      nextSeq: packetSequenceNext))
-                    case .pingClientCount:
-                      connection.send(
-                        messageToData(message: .pingPlusClientCount(),
-                                      nextSeq: packetSequenceNext))
-                    case .none:
-                      break
-                    }
+                    //
                     
                     // Handle any retransmit of un-acked packets
                     let now = Date().timeIntervalSince1970
@@ -78,7 +131,11 @@ extension JamulusProtocol {
                         )
                       }
                     }
+                    // TODO: Remove stale i.e. more than 10s old?
                   }
+              },
+              receiveCancel: {
+                retransmitPeriodic?.cancel()
               }
             )
             .map({ parseData(data: $0, defaultHost: connection.remoteHost) })
@@ -87,6 +144,7 @@ extension JamulusProtocol {
                 
               },
               receiveValue: { packet in
+                
                 switch packet {
                 case let .ackMessage(ackType, sequenceNumber):
                   // An acked packet should be removed from the retransmit queue
@@ -105,6 +163,12 @@ extension JamulusProtocol {
                   connection.send(
                     messageToData(message: ackMessage,
                                   nextSeq: packetSequenceNext))
+                  
+                case .messageNoAck(let message):
+                  if message.messageId == 1001 { // Ping
+                    lastPingReceived = Date().timeIntervalSince1970
+                  }
+                  
                 default:
                   break
                 }

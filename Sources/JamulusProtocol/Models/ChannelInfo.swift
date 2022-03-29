@@ -3,15 +3,15 @@ import Foundation
 
 public struct ChannelInfo: Equatable {
   public init(clientId: UInt8,
-                countryId: UInt16,
-                instrument: Instrument,
-                skillLevel: UInt8,
-                name: String,
-                city: String,
-                muted: Bool = false,
-                volume: UInt8 = 0,
-                gain: UInt16 = 0,
-                pan: UInt16 = ChannelPan.center) {
+              countryId: UInt16,
+              instrument: Instrument,
+              skillLevel: UInt8,
+              name: String,
+              city: String,
+              muted: Bool = false,
+              volume: UInt8 = 0,
+              gain: UInt16 = 0,
+              pan: UInt16 = ChannelPan.center) {
     self.clientId = clientId
     self.countryId = countryId
     self.instrument = instrument
@@ -48,11 +48,11 @@ public struct ChannelInfo: Equatable {
     let name = data.jamulusStringAt(index: &pos)
     let city = data.jamulusStringAt(index: &pos)
     return ChannelInfo(clientId: clientId,
-                                countryId: countryId,
-                                instrument: Instrument(rawValue: instrument) ?? .none,
-                                skillLevel: skillLevel,
-                                name: name,
-                                city: city)
+                       countryId: countryId,
+                       instrument: Instrument(rawValue: instrument) ?? .none,
+                       skillLevel: skillLevel,
+                       name: name,
+                       city: city)
   }
 }
 
