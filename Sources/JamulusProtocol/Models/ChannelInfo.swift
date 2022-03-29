@@ -2,17 +2,39 @@
 import Foundation
 
 public struct ChannelInfo: Equatable {
-  var clientId: UInt8
-  var countryId: UInt16
-  var instrument: Instrument
-  var skillLevel: UInt8
-  var name: String
-  var city: String
+  public init(clientId: UInt8,
+                countryId: UInt16,
+                instrument: Instrument,
+                skillLevel: UInt8,
+                name: String,
+                city: String,
+                muted: Bool = false,
+                volume: UInt8 = 0,
+                gain: UInt16 = 0,
+                pan: UInt16 = ChannelPan.center) {
+    self.clientId = clientId
+    self.countryId = countryId
+    self.instrument = instrument
+    self.skillLevel = skillLevel
+    self.name = name
+    self.city = city
+    self.muted = muted
+    self.volume = volume
+    self.gain = gain
+    self.pan = pan
+  }
   
-  var muted: Bool = false
-  var volume: UInt8 = 0
-  var gain: UInt16 = 0
-  var pan: UInt16 = ChannelPan.center
+  public var clientId: UInt8
+  public var countryId: UInt16
+  public var instrument: Instrument
+  public var skillLevel: UInt8
+  public var name: String
+  public var city: String
+  
+  public var muted: Bool = false
+  public var volume: UInt8 = 0
+  public var gain: UInt16 = 0
+  public var pan: UInt16 = ChannelPan.center
   
   static func parseFromData(data: Data, pos: inout Int, clientId: UInt8?) -> ChannelInfo {
     let kMinInfoSize = 9

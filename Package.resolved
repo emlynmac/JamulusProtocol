@@ -1,0 +1,14 @@
+{
+  "pins" : [
+    {
+      "identity" : "udpconnection",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/emlynmac/udpconnection",
+      "state" : {
+        "branch" : "main",
+        "revision" : "cec31f4c755bbaffc118500191beaacdaf2b4329"
+      }
+    }
+  ],
+  "version" : 2
+}

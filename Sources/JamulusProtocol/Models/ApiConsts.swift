@@ -2,14 +2,14 @@
 import Foundation
 
 public enum ApiConsts {
-  static let sampleRate48kHz: UInt32 = 48000
-  static let frameSamples64: UInt32 = 64
-  static let defaultPort: UInt16 = 22124
-  static let packetHeaderSize = 9
-  static let packetHeaderSizeWithoutChecksum = 7
-  static let packetDataStartOffset = packetHeaderSizeWithoutChecksum
-  static let messageIdNoAckStart = 1000   // Don't ack messages above this
-  static let messageIdAckStart = 9
+  public static let sampleRate48kHz: UInt32 = 48000
+  public static let frameSamples64: UInt32 = 64
+  public static let defaultPort: UInt16 = 22124
+  public static let packetHeaderSize = 9
+  public static let packetHeaderSizeWithoutChecksum = 7
+  public static let packetDataStartOffset = packetHeaderSizeWithoutChecksum
+  public static let messageIdNoAckStart = 1000   // Don't ack messages above this
+  public static let messageIdAckStart = 9
 }
 
 public enum OpusCompressedSize: UInt32 {
@@ -29,9 +29,9 @@ public enum OpusCompressedSize: UInt32 {
 }
 
 public struct ChannelPan: Equatable {
-  static let left: UInt16 = 0
-  static let center: UInt16 = 16384
-  static let right: UInt16 = 32768
+  public static let left: UInt16 = 0
+  public static let center: UInt16 = 16384
+  public static let right: UInt16 = 32768
   
   var pan: UInt16 = ChannelPan.center
 }
@@ -48,7 +48,7 @@ public enum AudioFrameFactor: UInt16 {
   case normal = 2
   case safe = 4
   
-  var frameSize: UInt16 {
+  public var frameSize: UInt16 {
     // 64 samples per frame minimum
     return UInt16(ApiConsts.frameSamples64) * rawValue
   }

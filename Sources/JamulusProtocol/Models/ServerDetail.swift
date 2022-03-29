@@ -3,25 +3,48 @@ import Foundation
 
 public struct ServerDetail: CustomStringConvertible, Equatable, Identifiable {
   
+  public init(name: String,
+              ipAddress: String,
+              port: UInt16,
+              maxClients: Int? = nil,
+              perm: Bool = false,
+              city: String? = nil,
+              country: String? = nil,
+              serverInternalName: String? = nil,
+              pingTimeMs: Int? = nil,
+              connectedClients: Int? = nil) {
+    self.name = name
+    self.ipAddress = ipAddress
+    self.port = port
+    self.maxClients = maxClients
+    self.perm = perm
+    self.city = city
+    self.country = country
+    self.serverInternalName = serverInternalName
+    self.pingTimeMs = pingTimeMs
+    self.connectedClients = connectedClients
+  }
+  
+  
   // From ServerDetails message
   public var id: String { "\(ipAddress):\(port)" }
-  var name: String
-  var ipAddress: String {
+  public var name: String
+  public var ipAddress: String {
     didSet {
       
     }
   }
-  var port: UInt16
-  var maxClients: Int?
-  var perm: Bool = false
-  var city: String?
-  var country: String?
-  var serverInternalName: String?
+  public var port: UInt16
+  public var maxClients: Int?
+  public var perm: Bool = false
+  public var city: String?
+  public var country: String?
+  public var serverInternalName: String?
   
   
   // From ping message
-  var pingTimeMs: Int?
-  var connectedClients: Int?
+  public var pingTimeMs: Int?
+  public var connectedClients: Int?
   
   public var description: String {
     return "\(name), \(city ?? "-") (\(ipAddress):\(port)) | \(maxClients != nil ? "Conn. limit: \(maxClients!)" : "")"

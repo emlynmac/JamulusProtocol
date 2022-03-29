@@ -49,7 +49,7 @@ public enum Instrument: UInt32, CustomStringConvertible, CaseIterable, Identifia
        baritoneVocals,
        leadVocals
   
-  var name: String {
+  public var name: String {
     switch self {
     case .drums: return "Drums"
       
@@ -104,7 +104,7 @@ public enum Instrument: UInt32, CustomStringConvertible, CaseIterable, Identifia
     name
   }
   
-  var icon: String {
+  public var icon: String {
     switch self {
     case .drums: return "🥁"
     case .djembe: return "🪘"

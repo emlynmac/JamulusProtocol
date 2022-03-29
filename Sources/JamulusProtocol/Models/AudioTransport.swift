@@ -2,12 +2,29 @@
 import Foundation
 
 public struct AudioTransportDetails: Equatable {
-  var packetSize: UInt32 = 0
-  var blockFactor: UInt16 = AudioFrameFactor.normal.rawValue
-  var channelCount: UInt8 = 2
-  var sampleRate: UInt32 = UInt32(ApiConsts.sampleRate48kHz)
-  var codec: AudioCodec = .opus
-  var counterRequired: Bool = false
+  
+  public init(
+    packetSize: UInt32 = 0,
+    blockFactor: UInt16 = AudioFrameFactor.normal.rawValue,
+    channelCount: UInt8 = 2,
+    sampleRate: UInt32 = UInt32(ApiConsts.sampleRate48kHz),
+    codec: AudioCodec = .opus,
+    counterRequired: Bool = false) {
+    self.packetSize = packetSize
+    self.blockFactor = blockFactor
+    self.channelCount = channelCount
+    self.sampleRate = sampleRate
+    self.codec = codec
+    self.counterRequired = counterRequired
+  }
+  
+  public var packetSize: UInt32 = 0
+  public var blockFactor: UInt16 = AudioFrameFactor.normal.rawValue
+  public var channelCount: UInt8 = 2
+  public var sampleRate: UInt32 = UInt32(ApiConsts.sampleRate48kHz)
+  public var codec: AudioCodec = .opus
+  public var counterRequired: Bool = false
+  
   
   static func parseFrom(data: Data) -> AudioTransportDetails {
     let kNetTransSize = 19

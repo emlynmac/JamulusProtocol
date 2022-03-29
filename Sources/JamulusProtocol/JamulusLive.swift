@@ -8,9 +8,11 @@ import UdpConnection
 /// Jamulus connection to a remote server
 ///
 extension JamulusProtocol {
-  static func live(url: URL,
-                   autoPingType: AutoPingType,
-                   queue: DispatchQueue = .global(qos: .userInteractive)) -> JamulusProtocol? {
+  public static func live(
+    url: URL,
+    serverKind: ConnectionKind,
+    queue: DispatchQueue = .global(qos: .userInteractive)) -> JamulusProtocol? {
+    let autoPingType = AutoPingType.initWith(serverKind)
     guard let connection = UdpConnection.live(url: url, queue: queue) else {
       assertionFailure("Failed to open network connection")
       return nil
