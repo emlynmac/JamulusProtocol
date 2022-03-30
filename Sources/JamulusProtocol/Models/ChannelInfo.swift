@@ -45,6 +45,8 @@ public struct ChannelInfo: Equatable {
     let countryId: UInt16 = data.numericalValueAt(index: &pos)
     let instrument: UInt32 = data.numericalValueAt(index: &pos)
     let skillLevel = data[pos]; pos += 1
+    // Skip 4 bytes for unused IP address field
+    pos += 4 // let ipAddr = data.iPv4AddressAt(index: &pos, defaultHost: "")
     let name = data.jamulusStringAt(index: &pos)
     let city = data.jamulusStringAt(index: &pos)
     return ChannelInfo(clientId: clientId,
@@ -61,7 +63,8 @@ extension Data {
     // Don't send the clientId to the server
     append(value.countryId)
     append(value.instrument.rawValue)
-    append(value.name)
-    append(value.city)
+    append(value.skillLevel)
+    appendJamulusString(value.name)
+    appendJamulusString(value.city)
   }
 }

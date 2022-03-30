@@ -11,6 +11,7 @@ public enum ApiConsts {
   public static let messageIdNoAckStart = 1000   // Don't ack messages above this
   public static let messageIdAckStart = 9
   public static let retransmitTimeout: TimeInterval = 1
+  public static let connectionTimeout: TimeInterval = 15
 }
 
 public enum OpusCompressedSize: UInt32 {

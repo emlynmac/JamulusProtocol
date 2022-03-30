@@ -32,5 +32,5 @@ public enum JamulusState: Equatable {
   case connecting
   case connected(clientId: UInt8)
   case disconnecting
-  case disconnected
+  case disconnected(error: JamulusError?)
 }

@@ -37,76 +37,87 @@ extension JamulusProtocol {
       var lastPingReceived: TimeInterval = 0
       var keepAlive: AnyCancellable?
       let statePublisher = PassthroughSubject<JamulusState, JamulusError>()
+      var state = JamulusState.disconnected(error: nil)
   
       return JamulusProtocol(
         open: { chanInfo in
 
-          // On the underlying UDP connection, start a keep alive for state
-          connection.statePublisher
+          // Monitor the underlying UDP connection
+          let connectionState = connection.statePublisher
             .handleEvents(
-              receiveSubscription: { _ in
-                
-              },
               receiveCancel: {
                 keepAlive?.cancel()
               }
             )
             .mapError({ JamulusError.networkError($0) })
-            .map({ nwState in
-              switch nwState {
-
-              case .setup:
-                break
-                
-              case .waiting(_):
-                break
-                
-              case .preparing:
-                break
-                
-              case .ready:
-                keepAlive = Timer.publish(every: 1, on: .main, in: .default)
-                  .autoconnect()
-                  .sink { _ in
-                    guard Date().timeIntervalSince1970 < lastPingReceived + 15 else {
-                      // No connection
-                      statePublisher.send(.disconnected)
-                      return
-                    }
-                    
-                    switch serverKind {
-                    case .mainServer:
-                      connection.send(
-                        messageToData(message: .ping(),
-                                      nextSeq: packetSequenceNext))
-                      lastPingSent = Date().timeIntervalSince1970
-                    case .listing:
-                      connection.send(
-                        messageToData(message: .pingPlusClientCount(),
-                                      nextSeq: packetSequenceNext))
-                      lastPingSent = Date().timeIntervalSince1970
+            .sink(
+              receiveCompletion: { result in
+                switch result {
+       
+                case .finished:
+                  break
+                  
+                case .failure(let error):
+                  statePublisher.send(.disconnected(error: error))
+                }
+              },
+              receiveValue: { value in
+                switch value {
+                  
+                case .ready:
+                  statePublisher.send(.connecting)
+                  connection.send(
+                    // When ready, send the channel info message
+                    messageToData(message: .setChannelInfo(chanInfo),
+                                  nextSeq: packetSequenceNext))
+                  
+                  keepAlive = Timer.publish(every: 1, on: .main, in: .default)
+                    .autoconnect()
+                    .sink { _ in
+                      guard lastPingReceived == 0 ||
+                        lastPingReceived < lastPingSent +
+                              ApiConsts.connectionTimeout else { // No connection
+                        statePublisher.send(.disconnected(error: .connectionTimedOut))
+                        return
+                      }
                       
-                    case .directoryLookup:
-                      break
+                      switch serverKind {
+                      case .mainServer:
+                        connection.send(
+                          messageToData(message: .ping(),
+                                        nextSeq: packetSequenceNext))
+                        lastPingSent = Date().timeIntervalSince1970
+                      case .listing:
+                        connection.send(
+                          messageToData(message: .pingPlusClientCount(),
+                                        nextSeq: packetSequenceNext))
+                        lastPingSent = Date().timeIntervalSince1970
+                        
+                      case .directoryLookup:
+                        break
+                      }
                     }
-                  }
-                
-              case .failed(let error):
-                statePublisher.send(
-                  completion: .failure(JamulusError.networkError(error))
-              )
-              case .cancelled:
-                break
-                
-              default:
-                break
-              }
-            })
+                  
+                case .failed(let error):
+                  statePublisher.send(
+                    completion: .failure(JamulusError.networkError(error))
+                  )
+                case .cancelled:
+                  break
+                  
+                default:
+                  break
+                }
+              })
           
-          defer {
-            statePublisher.send(.connecting)
-          }
-          return statePublisher.eraseToAnyPublisher()
+          // Return the jamulus state publisher
+          return statePublisher
+            .handleEvents(
+              receiveCancel: {
+                connectionState.cancel()
+              }
+            )
+            .eraseToAnyPublisher()
         },
         receiveDataPublisher: {
           let publisher = PassthroughSubject<JamulusPacket, Never>()
@@ -117,12 +128,15 @@ extension JamulusProtocol {
                 retransmitPeriodic = Timer.publish(every: 2, on: .main, in: .default)
                   .autoconnect()
                   .sink { _ in
-                    //
-                    
                     // Handle any retransmit of un-acked packets
                     let now = Date().timeIntervalSince1970
                     let packetKeys = ackRequiredPackets.keys.sorted()
                       .filter({ $0 < now - ApiConsts.retransmitTimeout })
+                    // Remove any old un-acked packets
+                    let staleKeys = packetKeys.filter({ $0 < now - 10 })
+                    staleKeys.forEach({ ackRequiredPackets.removeValue(forKey: $0) })
+                    
+                    // Retransmit un-acked packets
                     for key in packetKeys {
                       if let packet = ackRequiredPackets[key] {
                         connection.send(
@@ -131,7 +145,6 @@ extension JamulusProtocol {
                         )
                       }
                     }
-                    // TODO: Remove stale i.e. more than 10s old?
                   }
               },
               receiveCancel: {
@@ -160,6 +173,15 @@ extension JamulusProtocol {
                 case .messageNeedingAck(let message, let seq):
                   let ackMessage = JamulusMessage.ack(ackType: message.messageId,
                                                       sequenceNumber: seq)
+                  
+                  switch message {
+                  case .clientId(id: let id):
+                    statePublisher.send(.connected(clientId: id))
+                    state = .connected(clientId: id)
+                    
+                  default: break
+                  }
+
                   connection.send(
                     messageToData(message: ackMessage,
                                   nextSeq: packetSequenceNext))

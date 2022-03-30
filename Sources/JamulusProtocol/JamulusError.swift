@@ -5,6 +5,8 @@ import Network
 public enum JamulusError: CustomStringConvertible, Equatable, Error {
   public var description: String {
     switch self {
+    case .connectionTimedOut:
+      return "Server no longer available"
     case .bufferOverrun:
       return "Network receive buffer overflow"
     case .invalidAudioConfiguration:
@@ -22,6 +24,7 @@ public enum JamulusError: CustomStringConvertible, Equatable, Error {
     }
   }
   
+  case connectionTimedOut
   case bufferOverrun
   case invalidAudioConfiguration
   case invalidPacket(Data)

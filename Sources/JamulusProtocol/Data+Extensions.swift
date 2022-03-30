@@ -6,7 +6,6 @@ extension Data {
   /// Strings are UTF8, with either 1 or 2 byte length header
   func jamulusStringAt(index: inout Int, lengthSize: Int = 2) -> String {
     guard index + lengthSize < count else {
-      assertionFailure("String data not long enough")
       return ""
     }
     
