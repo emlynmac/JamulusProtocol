@@ -14,6 +14,10 @@ public enum ApiConsts {
   public static let connectionTimeout: TimeInterval = 15
 }
 
+///
+/// These are the payload sizes for the Opus packets
+/// AudioTransportDetails defines the transport for the audio network layer
+///
 public enum OpusCompressedSize: UInt32 {
   case monoLowQuality = 12
   case monoNormal = 22

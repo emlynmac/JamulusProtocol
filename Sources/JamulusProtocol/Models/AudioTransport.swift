@@ -4,7 +4,7 @@ import Foundation
 public struct AudioTransportDetails: Equatable {
   
   public init(
-    packetSize: UInt32 = 0,
+    packetSize: UInt32 = OpusCompressedSize.stereoNormalDouble.rawValue,
     blockFactor: UInt16 = AudioFrameFactor.normal.rawValue,
     channelCount: UInt8 = 2,
     sampleRate: UInt32 = UInt32(ApiConsts.sampleRate48kHz),
@@ -54,5 +54,7 @@ extension Data {
     append(value.channelCount)
     append(value.sampleRate)
     append(value.codec.rawValue)
+    append(UInt16(value.counterRequired ? 1 : 0))
+    append(UInt32(0))
   }
 }

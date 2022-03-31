@@ -28,7 +28,7 @@ func createChannelLevelList(payload: Data) -> JamulusMessage {
   var vals: [UInt8] = []
   for byte in payload {
     let first = byte & 0xF
-    let second = (byte >> 4) & 0xF
+    let second = (byte & 0xF0) >> 4
     vals.append(first)
     if second != 0xF { vals.append(second) }
   }
