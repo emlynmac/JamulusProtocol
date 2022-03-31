@@ -36,14 +36,16 @@ public struct AudioTransportDetails: Equatable {
     let channelCount: UInt8 = data.numericalValueAt(index: &offset)
     let sampleRate: UInt32 = data.numericalValueAt(index: &offset)
     let codecVal: UInt16 = data.numericalValueAt(index: &offset)
-    let codec = AudioCodec(rawValue: codecVal) ?? .raw
+    let codec = AudioCodec(rawValue: codecVal) ?? .opus
+    let flags: UInt16 = data.numericalValueAt(index: &offset)
     
     return AudioTransportDetails(
       packetSize: packetSize,
       blockFactor: blockFactor,
       channelCount: channelCount,
       sampleRate: sampleRate,
-      codec: codec)
+      codec: codec,
+      counterRequired: flags == 1 ? true : false)
   }
 }
 

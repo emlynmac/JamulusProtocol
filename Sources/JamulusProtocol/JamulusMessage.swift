@@ -9,56 +9,111 @@ public enum JamulusMessage: Equatable {
     UInt32(UInt64(Date().timeIntervalSince1970 * 1000) & 0xffff)
   }
   
-  // MARK: - Message Types
-  case ack(ackType: UInt16, sequenceNumber: UInt8)
-  case jitterBufSize(size: UInt16)
-  case requestJitterBufSize
-  case channelGain(channel: UInt8, gain: UInt16)
-  case requestClientList
-  case chatText(String)
-  case audioTransportProperties(details: AudioTransportDetails)
-  case requestAudioTransportProperties
-  case requestChannelsInfo
-  case clientList(channelInfo: [ChannelInfo])
-  case setChannelInfo(ChannelInfo)
-  case licenseRequired
-  case versionAndOsOld(version: String, os: OsType)
-  case channelPan(channel: UInt8, pan: UInt16)
-  case muteStateChange(channel: UInt8, muted: Bool)
+  // MARK: - Connection Setup and Teardown
+  /// Tell the client their channel ID on connection
   case clientId(id: UInt8)
-  case recorderState(state: RecorderState)
-  case requestSplitMessagesSupport
-  case splitMessagesSupport
   
-  case ping(timeStamp: UInt32 = JamulusMessage.timestamp)
-  case pingPlusClientCount(clientCount: UInt = 0,
-                           timeStamp: UInt32 = JamulusMessage.timestamp)
+  /// Send channel info - used to intially send client details to the server
+  case sendChannelInfo(ChannelInfo)
+  
+  /// Request the client list from the server
+  case requestClientList
+  
+  /// Request the audio transport properties for the remote host
+  case requestAudioTransportProperties
+  /// Send details of the audio transport to the remote host
+  case audioTransportProperties(details: AudioTransportDetails)
+  
+  /// Request that the server send the list of mixer channels
+  case requestChannelsInfo
+  
+  /// Request the remote jitter buffer size
+  case requestJitterBufSize
+  /// Set the remote jitter buffer size
+  case jitterBufSize(size: UInt16)
+  
+  /// Response if attempting to connect to a server with no more channels available
   case serverFull
+  
+  /// Unused at this time
+  case licenseRequired
+  
+  /// Request the remote host to send details of its OS and protocol version
+  case requestVersionAndOs
+  
+  /// Provide details of the host to the remote
+  case versionAndOsOld(version: String, os: OsType)
+  /// Provide details of the host to the remote, without requiring acknowledgement
+  case versionAndOs(version: String, os: OsType)
+  
+  /// Disconnect from the remote host
+  /// A host should continue to send this message until the audio stream has ceased
+  /// from the remote endpoint.
+  case disconnect
+  
+  // MARK: - Client Interactions
+  /// The absolute list of channels in the mixer. Will be called when
+  /// clients join / leave the jam
+  case clientList(channelInfo: [ChannelInfo])
+  
+  /// Provides the VU meter levels to the client from the server
+  case channelLevelList([UInt8])
+  
+  /// Set the gain for the channel to a value between 0 and Int16.max
+  case channelGain(channel: UInt8, gain: UInt16)
+  
+  /// Set the pan for the channel between 0 (L) and Int16.max (R)
+  case channelPan(channel: UInt8, pan: UInt16)
+  
+  /// Set the mute state of the channel
+  case muteStateChange(channel: UInt8, muted: Bool)
+  
+  /// Encapsulates a chat message
+  case chatText(String)
+  
+  /// Tell a client the state of the server mix recorder
+  case recorderState(state: RecorderState)
+  
+  
+  // MARK: - Directory Server Listing Messages
   case registerServer
   case unregisterServer
   case serverListWithDetails(details: [ServerDetail])
   case requestServerList
   case sendEmptyMessage
   case emptyMessage
-  case disconnect
-  case versionAndOs(version: String, os: OsType)
-  case requestVersionAndOs
-  case clientListNoAck(channelInfo: [ChannelInfo])
   case requestClientListAndDetails
-  case channelLevelList([UInt8])
+  case clientListNoAck(channelInfo: [ChannelInfo])
   case registerServerResponse
   case registerServerWithDetails
   case serverList(details: [ServerDetail])
   
+  
+  // MARK: - Protocol State Messages
+  /// Ask if a host supports split messages
+  case requestSplitMessagesSupport
+  /// Tell the remote that split messages are supported
+  case splitMessagesSupport
+  /// Container for split messages
   case splitMessageContainer
   
+  /// Acknowldegement message, for a message type and sequence number
+  case ack(ackType: UInt16, sequenceNumber: UInt8)
   
-  // MARK: - Vars
+  /// Ping the server - used for determining connection state and
+  /// can be used to determine jitter buffers to a degree
+  case ping(timeStamp: UInt32 = JamulusMessage.timestamp)
   
-  /// Jamulus Message IDs
+  /// Ping a server and get the number of connected clients
+  /// Used primarily for evaluation a server prior to connecting
+  case pingPlusClientCount(clientCount: UInt = 0,
+                           timeStamp: UInt32 = JamulusMessage.timestamp)
+  
+  /// Jamulus Protocol Message ID
   var messageId: UInt16 {
     switch self {
       
+      // Messages requiring acks
     case .ack: return 1
     case .jitterBufSize: return 10
     case .requestJitterBufSize: return 11
@@ -69,7 +124,7 @@ public enum JamulusMessage: Equatable {
     case .requestAudioTransportProperties: return 21
     case .requestChannelsInfo: return 23
     case .clientList: return 24
-    case .setChannelInfo: return 25
+    case .sendChannelInfo: return 25
     case .licenseRequired: return 27
     case .versionAndOsOld: return 29
     case .channelPan: return 30
@@ -79,6 +134,7 @@ public enum JamulusMessage: Equatable {
     case .requestSplitMessagesSupport: return 34
     case .splitMessagesSupport: return 35
       
+      // Not requiring acks
     case .ping: return 1001
     case .pingPlusClientCount: return 1002
     case .serverFull: return 1003
@@ -102,7 +158,10 @@ public enum JamulusMessage: Equatable {
     case .splitMessageContainer: return 2001
     }
   }
-  
+}
+
+
+extension JamulusMessage {
   /// Obtain the sequence number for the packet, if non-sequential
   var sequenceNumberOverride: UInt8? {
     switch self {
@@ -154,7 +213,7 @@ public enum JamulusMessage: Equatable {
     case 32: return .clientId(id: payload[payloadIndex])
     case 1003: return .serverFull
     case 1006: return createServerListWithDetails(payload: payload,
-                                                   defaultHost: defaultHost)
+                                                  defaultHost: defaultHost)
     case 1011: return createVersionAndOs(payload: payload)
       
     case 1018: return createServerList(payload: payload,
@@ -193,7 +252,7 @@ public enum JamulusMessage: Equatable {
     }
   }
   
-  /// Builds the message payload
+  /// Builds the message payload for sending over the network
   var payload: Data {
     var payload = Data()
     
@@ -203,7 +262,7 @@ public enum JamulusMessage: Equatable {
       payload.append(channel)
       payload.append(gain)
       
-    case .setChannelInfo(let channelInfo): payload.append(channelInfo)
+    case .sendChannelInfo(let channelInfo): payload.append(channelInfo)
       
     case .channelPan(let channel, let pan):
       payload.append(channel)
@@ -234,21 +293,5 @@ public enum JamulusMessage: Equatable {
     }
     
     return payload
-  }
-  
-  // MARK: - Utility Functions
-  static func crcFunc(for data: Data) -> UInt16 {
-    let polyNomial: UInt32 = 0x00001020
-    var result: UInt32 = ~0
-    for byte in data {
-      for i in 0..<8 {
-        result <<= 1
-        if (result & 0x10000) > 0 { result |= 1 }
-        if (byte & (1 << (7 - i) )) > 0 { result ^= 1 }
-        if (result & 1) > 0 { result ^= polyNomial }
-      }
-    }
-    result = ~result
-    return UInt16(result & 0xFFFF)
   }
 }

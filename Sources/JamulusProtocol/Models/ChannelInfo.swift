@@ -2,7 +2,7 @@
 import Foundation
 
 public struct ChannelInfo: Equatable {
-  public init(clientId: UInt8,
+  public init(channelId: UInt8,
               countryId: UInt16,
               instrument: Instrument,
               skillLevel: UInt8,
@@ -12,7 +12,7 @@ public struct ChannelInfo: Equatable {
               volume: UInt8 = 0,
               gain: UInt16 = 0,
               pan: UInt16 = ChannelPan.center) {
-    self.clientId = clientId
+    self.channelId = channelId
     self.countryId = countryId
     self.instrument = instrument
     self.skillLevel = skillLevel
@@ -24,7 +24,7 @@ public struct ChannelInfo: Equatable {
     self.pan = pan
   }
   
-  public var clientId: UInt8
+  public var channelId: UInt8
   public var countryId: UInt16
   public var instrument: Instrument
   public var skillLevel: UInt8
@@ -36,11 +36,11 @@ public struct ChannelInfo: Equatable {
   public var gain: UInt16 = 0
   public var pan: UInt16 = ChannelPan.center
   
-  static func parseFromData(data: Data, pos: inout Int, clientId: UInt8?) -> ChannelInfo {
+  static func parseFromData(data: Data, pos: inout Int, channelId: UInt8?) -> ChannelInfo {
     let kMinInfoSize = 9
     assert(data.count > kMinInfoSize)
     
-    let clientId = clientId ?? data[pos]; pos += 1
+    let channelId = channelId ?? data[pos]; pos += 1
     
     let countryId: UInt16 = data.numericalValueAt(index: &pos)
     let instrument: UInt32 = data.numericalValueAt(index: &pos)
@@ -49,7 +49,7 @@ public struct ChannelInfo: Equatable {
     pos += 4 // let ipAddr = data.iPv4AddressAt(index: &pos, defaultHost: "")
     let name = data.jamulusStringAt(index: &pos)
     let city = data.jamulusStringAt(index: &pos)
-    return ChannelInfo(clientId: clientId,
+    return ChannelInfo(channelId: channelId,
                        countryId: countryId,
                        instrument: Instrument(rawValue: instrument) ?? .none,
                        skillLevel: skillLevel,

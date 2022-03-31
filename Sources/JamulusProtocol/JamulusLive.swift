@@ -68,7 +68,7 @@ extension JamulusProtocol {
                   statePublisher.send(.connecting)
                   connection.send(
                     // When ready, send the channel info message
-                    messageToData(message: .setChannelInfo(chanInfo),
+                    messageToData(message: .sendChannelInfo(chanInfo),
                                   nextSeq: packetSequenceNext))
                   
                   keepAlive = Timer.publish(every: 1, on: .main, in: .default)
@@ -262,7 +262,7 @@ func messageToData(message: JamulusMessage, nextSeq: UInt8) -> Data {
   data.append(contentsOf: payload)
   
   // Add CRC bytes
-  let crc = JamulusMessage.crcFunc(for: data)
+  let crc = jamulusCrc(for: data)
   data.append(crc)
   return data
 }
@@ -279,7 +279,7 @@ func parseData(data: Data, defaultHost: String) -> JamulusPacket {
       var crcOffset = dataPacket.count
       let crc: UInt16 = data.numericalValueAt(index: &crcOffset)
       // Check validity
-      if crc == JamulusMessage.crcFunc(for: dataPacket),
+      if crc == jamulusCrc(for: dataPacket),
          let message = JamulusMessage.deserialize(from: dataPacket,
                                                   defaultHost: defaultHost) {
         let sequence = data[4]

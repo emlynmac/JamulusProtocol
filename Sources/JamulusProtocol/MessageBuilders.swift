@@ -51,7 +51,7 @@ private func parseChannelInfos(payload: Data) -> [ChannelInfo] {
   while ( (payload.count - pos) >= kMinClientListSize) {
     let channelInfo = ChannelInfo.parseFromData(data: payload,
                                                 pos: &pos,
-                                                clientId: nil)
+                                                channelId: nil)
     channels.append(channelInfo)
   }
   return channels
@@ -138,9 +138,9 @@ func createMuteChange(payload: Data) -> JamulusMessage {
 
 func createSetChannelInfo(payload: Data) -> JamulusMessage {
   var pos = 0
-  return .setChannelInfo(ChannelInfo.parseFromData(data: payload,
+  return .sendChannelInfo(ChannelInfo.parseFromData(data: payload,
                                                    pos: &pos,
-                                                   clientId: 0))
+                                                   channelId: 0))
 }
 
 func parseVersionAndOs(payload: Data) -> (version: String, os: OsType) {
