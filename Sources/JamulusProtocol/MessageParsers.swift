@@ -2,7 +2,7 @@
 import Foundation
 
 
-func createPing(data: Data, payload: Data) -> JamulusMessage {
+func parsePingFrom(data: Data, payload: Data) -> JamulusMessage {
   var index = 0
   if payload.count == 4 {
     let timeStamp: UInt32 = payload.numericalValueAt(index: &index)
@@ -11,7 +11,7 @@ func createPing(data: Data, payload: Data) -> JamulusMessage {
   return .ping()
 }
 
-func createPingWithClientCount(data: Data,
+func parsePingAndClientCountFrom(data: Data,
                                payload: Data) -> JamulusMessage {
   var index = 0
   if payload.count == 5 {
@@ -22,8 +22,7 @@ func createPingWithClientCount(data: Data,
   return .pingPlusClientCount(clientCount: 0)
 }
 
-
-func createChannelLevelList(payload: Data) -> JamulusMessage {
+func parseChannelLevelsFrom(payload: Data) -> JamulusMessage {
   // Levels are 4 bits each, sent as a pair
   var vals: [UInt8] = []
   for byte in payload {
@@ -35,11 +34,11 @@ func createChannelLevelList(payload: Data) -> JamulusMessage {
   return .channelLevelList(vals)
 }
 
-func createClientList(payload: Data) -> JamulusMessage {
+func parseClientListFrom(payload: Data) -> JamulusMessage {
   return .clientList(channelInfo: parseChannelInfos(payload: payload))
 }
 
-func createClientListNoAck(payload: Data) -> JamulusMessage {
+func parseClientListNoAckFrom(payload: Data) -> JamulusMessage {
   return .clientListNoAck(channelInfo: parseChannelInfos(payload: payload))
 }
 
@@ -57,7 +56,7 @@ private func parseChannelInfos(payload: Data) -> [ChannelInfo] {
   return channels
 }
 
-func createServerListWithDetails(payload: Data,
+func parseServerListWithDetailsFrom(payload: Data,
                                  defaultHost: String) -> JamulusMessage {
   let kMinServerListSize = 6
   
@@ -73,7 +72,7 @@ func createServerListWithDetails(payload: Data,
   return .serverListWithDetails(details: details)
 }
 
-func createServerList(payload: Data,
+func parseServerListFrom(payload: Data,
                       defaultHost: String) -> JamulusMessage {
   let kMinServerListSize = 5
   var pos = 0
@@ -88,7 +87,7 @@ func createServerList(payload: Data,
   return .serverList(details: details)
 }
 
-func createDetailedServerList(payload: Data,
+func parseDetailedServerListFrom(payload: Data,
                               defaultHost: String) -> JamulusMessage {
   let kMinServerListSize = 16
   var details: [ServerDetail] = []
@@ -103,19 +102,16 @@ func createDetailedServerList(payload: Data,
   return .serverListWithDetails(details: details)
 }
 
-func createChatText(payload: Data) -> JamulusMessage {
+func parseChatTextFrom(payload: Data) -> JamulusMessage {
   var text = String()
   var index = 0
-  //    var length: UInt16 = 0
   if payload.count > 2 {
-    //      length = payload.numericalValueAt(index: &index)
-    //      assert(Int(length) + index == payload.count)
     text = payload.jamulusStringAt(index: &index)
   }
   return .chatText(text)
 }
 
-func createChannelPan(payload: Data) -> JamulusMessage {
+func parseChannelPanFrom(payload: Data) -> JamulusMessage {
   assert(payload.count == 3)
   var index = 1
   var pan: UInt16 = ChannelPan.center
@@ -123,7 +119,7 @@ func createChannelPan(payload: Data) -> JamulusMessage {
   return .channelPan(channel: payload[0], pan: pan)
 }
 
-func createChannelGain(payload: Data) -> JamulusMessage {
+func parseChannelGainFrom(payload: Data) -> JamulusMessage {
   assert(payload.count == 3)
   var index = 1
   var gain: UInt16 = 0
@@ -131,12 +127,12 @@ func createChannelGain(payload: Data) -> JamulusMessage {
   return .channelGain(channel: payload[0], gain: gain)
 }
 
-func createMuteChange(payload: Data) -> JamulusMessage {
+func parseMuteChangeFrom(payload: Data) -> JamulusMessage {
   assert(payload.count == 2)
   return .muteStateChange(channel: payload[0], muted: payload[1] > 0)
 }
 
-func createSetChannelInfo(payload: Data) -> JamulusMessage {
+func parseChannelInfoFrom(payload: Data) -> JamulusMessage {
   var pos = 0
   return .sendChannelInfo(ChannelInfo.parseFromData(data: payload,
                                                    pos: &pos,
@@ -151,17 +147,17 @@ func parseVersionAndOs(payload: Data) -> (version: String, os: OsType) {
   return (version, os)
 }
 
-func createVersionAndOsOld(payload: Data) -> JamulusMessage {
+func parseVersionAndOsAckedFrom(payload: Data) -> JamulusMessage {
   let (version, os) = parseVersionAndOs(payload: payload)
   return .versionAndOsOld(version: version, os: os)
 }
 
-func createVersionAndOs(payload: Data) -> JamulusMessage {
+func parseVersionAndOsFrom(payload: Data) -> JamulusMessage {
   let (version, os) = parseVersionAndOs(payload: payload)
   return .versionAndOs(version: version, os: os)
 }
 
-func createRecorderState(payload: Data) -> JamulusMessage {
+func parseRecorderStateFrom(payload: Data) -> JamulusMessage {
   var state = RecorderState.unknown
   if let byte = payload.first,
      let val = RecorderState(rawValue: byte) {
@@ -170,3 +166,13 @@ func createRecorderState(payload: Data) -> JamulusMessage {
   return .recorderState(state: state)
 }
 
+func parseSplitMessage(payload: Data) -> JamulusMessage {
+  var pos = 0
+  let id: UInt16 = payload.numericalValueAt(index: &pos)
+  let totalParts: UInt8 = payload[pos]; pos += 1
+  let part: UInt8 = payload[pos]; pos += 1
+ 
+  return .splitMessageContainer(id: id,
+                                totalParts: totalParts, part: part,
+                                payload: payload[pos...])
+}

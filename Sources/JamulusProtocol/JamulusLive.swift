@@ -29,7 +29,7 @@ extension JamulusProtocol {
       var audioPacketSequenceNext: UInt8 { nextSequenceNumber(val: &audioPacketSequence) }
       
       // Retransmit un-acked packets
-      var ackRequiredPackets = [TimeInterval: (seq: UInt8, message: JamulusMessage)]()
+      var unAckedMessages = [TimeInterval: (seq: UInt8, message: JamulusMessage)]()
       var retransmitPeriodic: AnyCancellable?
       
       // Last seen packet time and state
@@ -37,14 +37,87 @@ extension JamulusProtocol {
       var lastPingReceived: TimeInterval = 0
       var lastAudioPacketTime: TimeInterval = 0
       
+      // Protocol state management
       var keepAlive: AnyCancellable?
       let statePublisher = PassthroughSubject<JamulusState, JamulusError>()
       var protocolState = JamulusState.disconnected(error: nil) {
-        didSet {
-          print(protocolState)
-          statePublisher.send(protocolState)
-        }
+        didSet { statePublisher.send(protocolState) }
       }
+      
+      // Storage to reassemble split messages
+      var splitMessages: [UInt16: [Data?]] = [:]
+      
+      func handleReceive(packet: JamulusPacket) -> Bool {
+        switch packet {
+        case let .ackMessage(ackType, sequenceNumber):
+          // An acked packet should be removed from the retransmit queue
+          let found = unAckedMessages.first(where: {
+            $0.value.message.messageId == ackType &&
+            $0.value.seq == sequenceNumber
+          })
+          
+          if let key = found?.key {
+            unAckedMessages[key] = nil
+          }
+          
+        case .messageNeedingAck(let message, let seq):
+          let ackMessage = JamulusMessage.ack(ackType: message.messageId,
+                                              sequenceNumber: seq)
+          
+          switch message {
+          case .clientId(id: let id):
+            guard protocolState != .disconnecting else { return false }
+            protocolState = .connected(clientId: id)
+            
+          case .requestSplitMessagesSupport:
+            connection.send(
+              messageToData(
+                message: .splitMessagesSupport,
+                nextSeq: packetSequenceNext
+              )
+            )
+            return false // Don't send this packet up
+            
+          case let .splitMessageContainer(id, totalParts, part, payload):
+            if let messageData = handleSplitMessage(
+              id: id, total: Int(totalParts), part: Int(part),
+              payload: payload, storage: &splitMessages) {
+              
+              return handleReceive(
+                packet: parseData(data: messageData,
+                                  defaultHost: connection.remoteHost)
+              )
+            }
+            
+          default: break
+          }
+          
+          connection.send(
+            messageToData(message: ackMessage,
+                          nextSeq: packetSequenceNext)
+          )
+          
+        case .messageNoAck(let message):
+          if message.messageId == 1001 { // Ping
+            lastPingReceived = Date().timeIntervalSince1970
+          }
+          
+        case .audio:
+          if protocolState == .disconnecting {
+            // Keep sending a disconnect message until the audio stops
+            lastAudioPacketTime = Date().timeIntervalSince1970
+            connection.send(
+              messageToData(
+                message: .disconnect,
+                nextSeq: packetSequenceNext)
+            )
+          }
+        default:
+          break
+        }
+        return true
+      }
+      
       
       return JamulusProtocol(
         open: { chanInfo in
@@ -148,15 +221,15 @@ extension JamulusProtocol {
                   .sink { _ in
                     // Handle any retransmit of un-acked packets
                     let now = Date().timeIntervalSince1970
-                    let packetKeys = ackRequiredPackets.keys.sorted()
+                    let packetKeys = unAckedMessages.keys.sorted()
                       .filter({ $0 < now - ApiConsts.retransmitTimeout })
                     // Remove any old un-acked packets
                     let staleKeys = packetKeys.filter({ $0 < now - 10 })
-                    staleKeys.forEach({ ackRequiredPackets.removeValue(forKey: $0) })
+                    staleKeys.forEach({ unAckedMessages.removeValue(forKey: $0) })
                     
                     // Retransmit un-acked packets
                     for key in packetKeys {
-                      if let packet = ackRequiredPackets[key] {
+                      if let packet = unAckedMessages[key] {
                         connection.send(
                           messageToData(message: packet.message,
                                         nextSeq: packet.seq)
@@ -175,57 +248,10 @@ extension JamulusProtocol {
                 
               },
               receiveValue: { packet in
-                
-                switch packet {
-                case let .ackMessage(ackType, sequenceNumber):
-                  // An acked packet should be removed from the retransmit queue
-                  let found = ackRequiredPackets.first(where: {
-                    $0.value.message.messageId == ackType &&
-                    $0.value.seq == sequenceNumber
-                  })
-                  
-                  if let key = found?.key {
-                    ackRequiredPackets[key] = nil
-                  }
-                  
-                case .messageNeedingAck(let message, let seq):
-                  let ackMessage = JamulusMessage.ack(ackType: message.messageId,
-                                                      sequenceNumber: seq)
-                  
-                  switch message {
-                  case .clientId(id: let id):
-                    guard protocolState != .disconnecting else { return }
-                    protocolState = .connected(clientId: id)
-                    
-                  default: break
-                  }
-                  
-                  connection.send(
-                    messageToData(message: ackMessage,
-                                  nextSeq: packetSequenceNext)
-                  )
-                  
-                case .messageNoAck(let message):
-                  if message.messageId == 1001 { // Ping
-                    lastPingReceived = Date().timeIntervalSince1970
-                  }
-                  
-                case .audio:
-                  if protocolState == .disconnecting {
-                    // Keep sending a disconnect message until the audio stops
-                    lastAudioPacketTime = Date().timeIntervalSince1970
-                    connection.send(
-                      messageToData(
-                        message: .disconnect,
-                        nextSeq: packetSequenceNext)
-                    )
-                  }
-                default:
-                  break
+                if handleReceive(packet: packet) {
+                  // Forward packet up
+                  publisher.send(packet)
                 }
-                
-                // Forward packet up
-                publisher.send(packet)
               }
             )
           
@@ -247,13 +273,13 @@ extension JamulusProtocol {
           case .disconnect:
             protocolState = .disconnecting
             lastAudioPacketTime = Date().timeIntervalSince1970
-            ackRequiredPackets.removeAll()
+            unAckedMessages.removeAll()
           default:
             break
           }
           let sequenceNumber = packetSequenceNext
           if message.needsAck { // Store message, remove when acked
-            ackRequiredPackets[Date().timeIntervalSince1970] = (sequenceNumber, message)
+            unAckedMessages[Date().timeIntervalSince1970] = (sequenceNumber, message)
           }
           let data = messageToData(message: message, nextSeq: sequenceNumber)
           connection.send(data)
@@ -271,75 +297,4 @@ extension JamulusProtocol {
         }
       )
     }
-}
-
-func nextSequenceNumber(val: inout UInt8) -> UInt8 {
-  val += 1
-  if val == 255 {
-    val = 0
-  }
-  return val
-}
-
-
-/// Get packet data from a JamulusMessage
-func messageToData(message: JamulusMessage, nextSeq: UInt8) -> Data {
-  // Add zero word header
-  var data = Data([0,0])
-  // Add Type
-  data.append(message.messageId)
-  
-  // Add sequence number
-  if let override = message.sequenceNumberOverride {
-    data.append(override)
-  } else {
-    data.append(nextSeq)
-  }
-  // Add payload data
-  let payload = message.payload
-  // Add data length
-  data.append(UInt16(payload.count))
-  // and data
-  data.append(contentsOf: payload)
-  
-  // Add CRC bytes
-  let crc = jamulusCrc(for: data)
-  data.append(crc)
-  return data
-}
-
-/// Parse network data into a jamulus packet
-func parseData(data: Data, defaultHost: String) -> JamulusPacket {
-  if data.count >= ApiConsts.packetHeaderSize, data[0] == 0, data[1] == 0 {
-    var index = 5
-    let dataLen: UInt16 = data.numericalValueAt(index: &index)
-    
-    // Check length
-    if data.count == Int(dataLen) + ApiConsts.packetHeaderSize {
-      let dataPacket = data.subdata(in: 0..<data.count-2)
-      var crcOffset = dataPacket.count
-      let crc: UInt16 = data.numericalValueAt(index: &crcOffset)
-      // Check validity
-      if crc == jamulusCrc(for: dataPacket),
-         let message = JamulusMessage.deserialize(from: dataPacket,
-                                                  defaultHost: defaultHost) {
-        let sequence = data[4]
-        
-        switch message {
-        case .ack(let ackType, let sequenceNumber):
-          return .ackMessage(ackType: ackType, sequenceNumber: sequenceNumber)
-          
-        default:
-          break
-        }
-        return message.needsAck ?
-          .messageNeedingAck(message, sequence) :
-          .messageNoAck(message)
-      }
-    }
-  } else {
-    // Data packet - just push that out to the audio handler
-    return .audio(data)
-  }
-  return .error(JamulusError.invalidPacket(data))
 }

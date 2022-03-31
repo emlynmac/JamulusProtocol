@@ -95,7 +95,9 @@ public enum JamulusMessage: Equatable {
   /// Tell the remote that split messages are supported
   case splitMessagesSupport
   /// Container for split messages
-  case splitMessageContainer
+  case splitMessageContainer(id: UInt16,
+                             totalParts: UInt8, part: UInt8,
+                             payload: Data)
   
   /// Acknowldegement message, for a message type and sequence number
   case ack(ackType: UInt16, sequenceNumber: UInt8)
@@ -160,7 +162,7 @@ public enum JamulusMessage: Equatable {
   }
 }
 
-
+// MARK: - Network helper functions
 extension JamulusMessage {
   /// Obtain the sequence number for the packet, if non-sequential
   var sequenceNumberOverride: UInt8? {
@@ -178,7 +180,6 @@ extension JamulusMessage {
     messageId > ApiConsts.messageIdAckStart
   }
   
-  // MARK: - Network functionality
   /// Convert packet from network into a message
   static func deserialize(from data: Data, defaultHost: String) -> JamulusMessage? {
     guard data.count >= ApiConsts.packetHeaderSizeWithoutChecksum else {
@@ -195,37 +196,37 @@ extension JamulusMessage {
     switch messageType {
       
       // Client -> Server
-    case 13: return createChannelGain(payload: payload)
+    case 13: return parseChannelGainFrom(payload: payload)
     case 16: return .requestClientList
     case 23: return .requestChannelsInfo
-    case 25: return createSetChannelInfo(payload: payload)
-    case 30: return createChannelPan(payload: payload)
-    case 31: return createMuteChange(payload: payload)
+    case 25: return parseChannelInfoFrom(payload: payload)
+    case 30: return parseChannelPanFrom(payload: payload)
+    case 31: return parseMuteChangeFrom(payload: payload)
     case 1007: return .requestServerList
     case 1012: return .requestVersionAndOs
     case 1014: return .requestClientListAndDetails
       
       // Server -> Client
-    case 24: return createClientList(payload: payload)
-    case 33: return createRecorderState(payload: payload)
-    case 29: return createVersionAndOsOld(payload: payload)
+    case 24: return parseClientListFrom(payload: payload)
+    case 33: return parseRecorderStateFrom(payload: payload)
+    case 29: return parseVersionAndOsAckedFrom(payload: payload)
     case 27: return .licenseRequired
     case 32: return .clientId(id: payload[payloadIndex])
     case 1003: return .serverFull
-    case 1006: return createServerListWithDetails(payload: payload,
+    case 1006: return parseServerListWithDetailsFrom(payload: payload,
                                                   defaultHost: defaultHost)
-    case 1011: return createVersionAndOs(payload: payload)
+    case 1011: return parseVersionAndOsFrom(payload: payload)
       
-    case 1018: return createServerList(payload: payload,
+    case 1018: return parseServerListFrom(payload: payload,
                                        defaultHost: defaultHost)
-    case 1013: return createClientListNoAck(payload: payload)
-    case 1015: return createChannelLevelList(payload: payload)
+    case 1013: return parseClientListNoAckFrom(payload: payload)
+    case 1015: return parseChannelLevelsFrom(payload: payload)
       
       // Both
     case 1: return .ack(ackType: messageType, sequenceNumber: UInt8(sequence))
     case 10: return .jitterBufSize(size: payload.numericalValueAt(index: &payloadIndex))
     case 11: return .requestJitterBufSize
-    case 18: return createChatText(payload: payload)
+    case 18: return parseChatTextFrom(payload: payload)
     case 20: return .audioTransportProperties(
       details: AudioTransportDetails.parseFrom(data: payload)
     )
@@ -233,10 +234,10 @@ extension JamulusMessage {
     case 34: return .requestSplitMessagesSupport
     case 35: return .splitMessagesSupport
       
-    case 1001: return createPing(data: data, payload: payload)
-    case 1002: return createPingWithClientCount(data: data, payload: payload)
+    case 1001: return parsePingFrom(data: data, payload: payload)
+    case 1002: return parsePingAndClientCountFrom(data: data, payload: payload)
     case 1010: return .disconnect
-    case 2001: return .splitMessageContainer
+    case 2001: return parseSplitMessage(payload: payload)
       
       // Server -> Server
     case 1004: return .registerServer
@@ -252,7 +253,9 @@ extension JamulusMessage {
     }
   }
   
-  /// Builds the message payload for sending over the network
+  ///
+  /// Data payload for sending over the network
+  ///
   var payload: Data {
     var payload = Data()
     
@@ -289,7 +292,9 @@ extension JamulusMessage {
       payload.append(timeStamp)
       payload.append(UInt8(clientCount))
       
-    default: break
+    default:
+      assertionFailure("Unhandled Message Payload Type (\(self.messageId))!")
+      break
     }
     
     return payload
