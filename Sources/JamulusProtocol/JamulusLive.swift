@@ -247,6 +247,7 @@ extension JamulusProtocol {
           case .disconnect:
             protocolState = .disconnecting
             lastAudioPacketTime = Date().timeIntervalSince1970
+            ackRequiredPackets.removeAll()
           default:
             break
           }
