@@ -32,7 +32,7 @@ public enum JamulusState: Equatable {
   case connecting
   case connected(clientId: UInt8)
   case disconnecting
-  case disconnected(error: JamulusError?)
+  case disconnected(error: JamulusError? = nil)
 }
 
 /// CRC value for jamulus messaging packets

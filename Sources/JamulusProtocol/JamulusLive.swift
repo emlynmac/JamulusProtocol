@@ -35,13 +35,20 @@ extension JamulusProtocol {
       // Last seen packet time and state
       var lastPingSent: TimeInterval = 0
       var lastPingReceived: TimeInterval = 0
+      var lastAudioPacketTime: TimeInterval = 0
+      
       var keepAlive: AnyCancellable?
       let statePublisher = PassthroughSubject<JamulusState, JamulusError>()
-      var state = JamulusState.disconnected(error: nil)
-  
+      var protocolState = JamulusState.disconnected(error: nil) {
+        didSet {
+          print(protocolState)
+          statePublisher.send(protocolState)
+        }
+      }
+      
       return JamulusProtocol(
         open: { chanInfo in
-
+          
           // Monitor the underlying UDP connection
           let connectionState = connection.statePublisher
             .handleEvents(
@@ -53,56 +60,67 @@ extension JamulusProtocol {
             .sink(
               receiveCompletion: { result in
                 switch result {
-       
+                  
                 case .finished:
                   break
                   
                 case .failure(let error):
-                  statePublisher.send(.disconnected(error: error))
+                  protocolState = .disconnected(error: error)
                 }
               },
               receiveValue: { value in
                 switch value {
                   
                 case .ready:
-                  statePublisher.send(.connecting)
+                  protocolState = .connecting
                   connection.send(
-                    // When ready, send the channel info message
                     messageToData(message: .sendChannelInfo(chanInfo),
                                   nextSeq: packetSequenceNext))
                   
                   keepAlive = Timer.publish(every: 1, on: .main, in: .default)
                     .autoconnect()
                     .sink { _ in
-                      guard lastPingReceived == 0 ||
-                        lastPingReceived < lastPingSent +
-                              ApiConsts.connectionTimeout else { // No connection
-                        statePublisher.send(.disconnected(error: .connectionTimedOut))
-                        return
-                      }
-                      
-                      switch serverKind {
-                      case .mainServer:
-                        connection.send(
-                          messageToData(message: .ping(),
-                                        nextSeq: packetSequenceNext))
-                        lastPingSent = Date().timeIntervalSince1970
-                      case .listing:
-                        connection.send(
-                          messageToData(message: .pingPlusClientCount(),
-                                        nextSeq: packetSequenceNext))
-                        lastPingSent = Date().timeIntervalSince1970
+                      switch protocolState {
                         
-                      case .directoryLookup:
-                        break
+                      case .connecting, .connected(_), .disconnected(_):
+                        guard lastPingReceived == 0 ||
+                                lastPingReceived < lastPingSent +
+                                ApiConsts.connectionTimeout else { // No connection
+                          statePublisher.send(.disconnected(error: .connectionTimedOut))
+                          return
+                        }
+                        
+                        switch serverKind {
+                        case .mainServer:
+                          connection.send(
+                            messageToData(message: .ping(),
+                                          nextSeq: packetSequenceNext))
+                          lastPingSent = Date().timeIntervalSince1970
+                        case .listing:
+                          connection.send(
+                            messageToData(message: .pingPlusClientCount(),
+                                          nextSeq: packetSequenceNext))
+                          lastPingSent = Date().timeIntervalSince1970
+                          
+                        case .directoryLookup:
+                          break
+                        }
+                        
+                      case .disconnecting:
+                        if lastAudioPacketTime + 0.5 < Date().timeIntervalSince1970 {
+                          protocolState = .disconnected()
+                        }
                       }
                     }
                   
                 case .failed(let error):
+                  let jamError = JamulusError.networkError(error)
+                  protocolState = .disconnected(error: jamError)
                   statePublisher.send(
-                    completion: .failure(JamulusError.networkError(error))
+                    completion: .failure(jamError)
                   )
                 case .cancelled:
+                  protocolState = .disconnected()
                   break
                   
                 default:
@@ -176,21 +194,32 @@ extension JamulusProtocol {
                   
                   switch message {
                   case .clientId(id: let id):
-                    statePublisher.send(.connected(clientId: id))
-                    state = .connected(clientId: id)
+                    guard protocolState != .disconnecting else { return }
+                    protocolState = .connected(clientId: id)
                     
                   default: break
                   }
-
+                  
                   connection.send(
                     messageToData(message: ackMessage,
-                                  nextSeq: packetSequenceNext))
+                                  nextSeq: packetSequenceNext)
+                  )
                   
                 case .messageNoAck(let message):
                   if message.messageId == 1001 { // Ping
                     lastPingReceived = Date().timeIntervalSince1970
                   }
                   
+                case .audio:
+                  if protocolState == .disconnecting {
+                    // Keep sending a disconnect message until the audio stops
+                    lastAudioPacketTime = Date().timeIntervalSince1970
+                    connection.send(
+                      messageToData(
+                        message: .disconnect,
+                        nextSeq: packetSequenceNext)
+                    )
+                  }
                 default:
                   break
                 }
@@ -211,15 +240,26 @@ extension JamulusProtocol {
             .eraseToAnyPublisher()
         }(),
         send: { message in
+          guard protocolState != .disconnecting else { return }
+          
+          // Intercept messages for some protocol aspects
+          switch message {
+          case .disconnect:
+            protocolState = .disconnecting
+            lastAudioPacketTime = Date().timeIntervalSince1970
+          default:
+            break
+          }
           let sequenceNumber = packetSequenceNext
-          if message.needsAck {
-            // Store message, remove when acked
+          if message.needsAck { // Store message, remove when acked
             ackRequiredPackets[Date().timeIntervalSince1970] = (sequenceNumber, message)
           }
           let data = messageToData(message: message, nextSeq: sequenceNumber)
           connection.send(data)
         },
         sendAudio: {
+          guard protocolState != .disconnecting else { return }
+          
           if $1 {
             var data = $0
             data.append(audioPacketSequenceNext)
