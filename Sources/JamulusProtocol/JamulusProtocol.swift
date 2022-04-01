@@ -29,7 +29,7 @@ public enum JamulusPacket: Equatable {
 
 public enum JamulusState: Equatable {
   case connecting
-  case connected(clientId: UInt8)
+  case connected(clientId: UInt8? = nil)
   case disconnecting
   case disconnected(error: JamulusError? = nil)
 }

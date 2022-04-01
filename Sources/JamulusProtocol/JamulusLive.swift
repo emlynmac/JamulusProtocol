@@ -47,6 +47,10 @@ extension JamulusProtocol {
       // Storage to reassemble split messages
       var splitMessages: [UInt16: [Data?]] = [:]
       
+      ///
+      /// Process a packet from the UdpConnection layer
+      ///
+      /// - Returns: true if the packet should be published out of the stack
       func handleReceive(packet: JamulusPacket) -> Bool {
         switch packet {
         case let .ackMessage(ackType, sequenceNumber):
@@ -126,30 +130,38 @@ extension JamulusProtocol {
           let connectionState = connection.statePublisher
             .handleEvents(
               receiveCancel: {
+#if DEBUG
+                print("UdpConnection state publisher cancelled")
+#endif
                 keepAlive?.cancel()
               }
             )
             .mapError({ JamulusError.networkError($0) })
             .sink(
               receiveCompletion: { result in
+#if DEBUG
+                print("UdpConnection completed: \(result)")
+#endif
                 switch result {
-                  
-                case .finished:
-                  break
-                  
-                case .failure(let error):
-                  protocolState = .disconnected(error: error)
+                case .finished: break
+                case .failure(let error): protocolState = .disconnected(error: error)
                 }
               },
               receiveValue: { value in
+#if DEBUG
+                print("UdpConnection state: \(value)")
+#endif
                 switch value {
                   
                 case .ready:
                   protocolState = .connecting
-                  connection.send(
-                    messageToData(message: .sendChannelInfo(chanInfo),
-                                  nextSeq: packetSequenceNext))
-                  
+                  if serverKind == .mainServer {
+                    connection.send(
+                      messageToData(message: .sendChannelInfo(chanInfo),
+                                    nextSeq: packetSequenceNext))
+                  } else {
+                    protocolState = .connected()
+                  }
                   keepAlive = Timer.publish(every: 1, on: .main, in: .default)
                     .autoconnect()
                     .sink { _ in
@@ -192,6 +204,7 @@ extension JamulusProtocol {
                   statePublisher.send(
                     completion: .failure(jamError)
                   )
+                  
                 case .cancelled:
                   protocolState = .disconnected()
                   break
@@ -205,6 +218,9 @@ extension JamulusProtocol {
           return statePublisher
             .handleEvents(
               receiveCancel: {
+#if DEBUG
+                print("JamulusProtocol statePublisher cancelled")
+#endif
                 connectionState.cancel()
               }
             )
@@ -261,6 +277,9 @@ extension JamulusProtocol {
                 
               },
               receiveCancel: {
+#if DEBUG
+                print("JamulusProtocol receive publisher cancelled")
+#endif
                 packetReceiver.cancel()
               })
             .eraseToAnyPublisher()
@@ -274,6 +293,7 @@ extension JamulusProtocol {
             protocolState = .disconnecting
             lastAudioPacketTime = Date().timeIntervalSince1970
             unAckedMessages.removeAll()
+            splitMessages.removeAll()
           default:
             break
           }

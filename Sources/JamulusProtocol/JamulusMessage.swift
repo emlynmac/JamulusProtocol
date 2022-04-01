@@ -293,7 +293,7 @@ extension JamulusMessage {
       payload.append(UInt8(clientCount))
       
     default:
-      assertionFailure("Unhandled Message Payload Type (\(self.messageId))!")
+      // No message payload
       break
     }
     
