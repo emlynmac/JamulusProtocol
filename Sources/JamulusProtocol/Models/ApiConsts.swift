@@ -2,7 +2,7 @@
 import Foundation
 
 public enum ApiConsts {
-  public static let sampleRate48kHz: UInt32 = 48000
+  public static let sampleRate48kHz: Float = 48000
   public static let frameSamples64: UInt32 = 64
   public static let defaultPort: UInt16 = 22124
   public static let packetHeaderSize = 9

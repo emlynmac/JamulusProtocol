@@ -1,30 +1,47 @@
 
 import Foundation
 
+///
+/// Provider of details for the audio transport layer for the jamulus protocol
+/// Used to set up the Opus audio coder
+///
 public struct AudioTransportDetails: Equatable {
   
   public init(
-    packetSize: UInt32 = OpusCompressedSize.stereoNormalDouble.rawValue,
-    blockFactor: UInt16 = AudioFrameFactor.normal.rawValue,
+    packetSize: OpusCompressedSize = .stereoNormalDouble,
+    blockFactor: AudioFrameFactor = .normal,
     channelCount: UInt8 = 2,
     sampleRate: UInt32 = UInt32(ApiConsts.sampleRate48kHz),
     codec: AudioCodec = .opus,
-    counterRequired: Bool = false) {
-    self.packetSize = packetSize
+    counterRequired: Bool = true) {
+    self.opusPacketSize = packetSize
     self.blockFactor = blockFactor
     self.channelCount = channelCount
     self.sampleRate = sampleRate
     self.codec = codec
-    self.counterRequired = counterRequired
+    self.sequenceAudioPackets = counterRequired
   }
   
-  public var packetSize: UInt32 = 0
-  public var blockFactor: UInt16 = AudioFrameFactor.normal.rawValue
-  public var channelCount: UInt8 = 2
-  public var sampleRate: UInt32 = UInt32(ApiConsts.sampleRate48kHz)
-  public var codec: AudioCodec = .opus
-  public var counterRequired: Bool = false
+  public var opusPacketSize: OpusCompressedSize
   
+  /// For a AudioFrameFactor.single, Opus should be configured with some additional options
+  public var blockFactor: AudioFrameFactor
+  public var channelCount: UInt8
+  public var sampleRate: UInt32
+  public var codec: AudioCodec
+  
+  /// From jamulus server 3.6.0 onwards, append a byte sequence number to the audio packet
+  public var sequenceAudioPackets: Bool
+  
+  ///
+  /// Provides the bit rate to set for the Opus encoder,
+  ///
+  public func bitRatePerSec() -> Int32 {
+    let frameSize = blockFactor == .single ?
+    ApiConsts.frameSamples64 : 2 * ApiConsts.frameSamples64
+    
+    return Int32((sampleRate * opusPacketSize.rawValue * 8) / frameSize)
+  }
   
   static func parseFrom(data: Data) -> AudioTransportDetails {
     let kNetTransSize = 19
@@ -40,8 +57,8 @@ public struct AudioTransportDetails: Equatable {
     let flags: UInt16 = data.numericalValueAt(index: &offset)
     
     return AudioTransportDetails(
-      packetSize: packetSize,
-      blockFactor: blockFactor,
+      packetSize: OpusCompressedSize(rawValue: packetSize) ?? .stereoNormalDouble,
+      blockFactor: AudioFrameFactor(rawValue: blockFactor) ?? .normal,
       channelCount: channelCount,
       sampleRate: sampleRate,
       codec: codec,
@@ -51,12 +68,28 @@ public struct AudioTransportDetails: Equatable {
 
 extension Data {
   mutating func append(_ value: AudioTransportDetails) {
-    append(value.packetSize)
-    append(value.blockFactor)
+    append(value.opusPacketSize.rawValue)
+    append(value.blockFactor.rawValue)
     append(value.channelCount)
     append(value.sampleRate)
     append(value.codec.rawValue)
-    append(UInt16(value.counterRequired ? 1 : 0))
+    append(UInt16(value.sequenceAudioPackets ? 1 : 0))
     append(UInt32(0))
+  }
+}
+
+
+extension AudioTransportDetails {
+  
+  ///
+  /// Default iOS configuration for initializing and standard use
+  ///
+  public static var iOSDefault: Self {
+    .init(packetSize: .stereoNormalDouble,
+          blockFactor: .normal,
+          channelCount: 2,
+          sampleRate: UInt32(ApiConsts.sampleRate48kHz),
+          codec: .opus,
+          counterRequired: true)
   }
 }

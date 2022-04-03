@@ -65,8 +65,13 @@ extension JamulusProtocol {
           }
           
         case .messageNeedingAck(let message, let seq):
+          // Acknowledge the packet
           let ackMessage = JamulusMessage.ack(ackType: message.messageId,
                                               sequenceNumber: seq)
+          connection.send(
+            messageToData(message: ackMessage,
+                          nextSeq: packetSequenceNext)
+          )
           
           switch message {
           case .clientId(id: let id):
@@ -95,12 +100,7 @@ extension JamulusProtocol {
             
           default: break
           }
-          
-          connection.send(
-            messageToData(message: ackMessage,
-                          nextSeq: packetSequenceNext)
-          )
-          
+
         case .messageNoAck(let message):
           if message.messageId == 1001 { // Ping
             lastPingReceived = Date().timeIntervalSince1970
@@ -124,8 +124,7 @@ extension JamulusProtocol {
       
       
       return JamulusProtocol(
-        open: { chanInfo in
-          
+        open: {           
           // Monitor the underlying UDP connection
           let connectionState = connection.statePublisher
             .handleEvents(
@@ -155,11 +154,7 @@ extension JamulusProtocol {
                   
                 case .ready:
                   protocolState = .connecting
-                  if serverKind == .mainServer {
-                    connection.send(
-                      messageToData(message: .sendChannelInfo(chanInfo),
-                                    nextSeq: packetSequenceNext))
-                  } else {
+                  if serverKind != .mainServer {
                     protocolState = .connected()
                   }
                   keepAlive = Timer.publish(every: 1, on: .main, in: .default)
@@ -308,10 +303,10 @@ extension JamulusProtocol {
           guard protocolState != .disconnecting else { return }
           
           if $1 {
-            var data = $0
-            data.append(audioPacketSequenceNext)
-            connection.send(data)
-          } else {
+//            var data = $0
+//            data.append(audioPacketSequenceNext)
+//            connection.send(data)
+//          } else {
             connection.send($0)
           }
         }

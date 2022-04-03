@@ -28,12 +28,12 @@ public enum JamulusError: CustomStringConvertible, Equatable, Error {
   case bufferOverrun
   case invalidAudioConfiguration
   case invalidPacket(Data)
-  case opusError(Int)
+  case opusError(Int32?)
   case opusNotConfigured
   case networkError(NWError)
   case noConnection(URL?)
 
-  private func opusErrorString(_ val: Int) -> String {
+  private func opusErrorString(_ val: Int32?) -> String {
     switch val {
     case 0: return "OK"
     case -1: return "Bad argument"
@@ -43,7 +43,7 @@ public enum JamulusError: CustomStringConvertible, Equatable, Error {
     case -5: return "Unimplemented"
     case -6: return "Invalid state"
     case -7: return "Allocation failed"
-    default: return "Unknown error \(val)"
+    default: return "Unknown error \(String(describing: val))"
     }
   }
 }

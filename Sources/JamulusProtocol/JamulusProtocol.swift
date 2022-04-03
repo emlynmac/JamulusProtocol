@@ -7,7 +7,7 @@ import Network
 /// API to make a connection to a Jamulus server endpoint
 ///
 public struct JamulusProtocol {
-  public var open: (ChannelInfo) -> AnyPublisher<JamulusState, JamulusError>
+  public var open: () -> AnyPublisher<JamulusState, JamulusError>
   public var receiveDataPublisher: AnyPublisher<JamulusPacket, Never>
   public var send: (JamulusMessage) -> Void
   public var sendAudio: (Data, Bool) -> Void
