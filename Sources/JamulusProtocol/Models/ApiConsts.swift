@@ -50,9 +50,8 @@ public enum AudioCodec: UInt16 {
 }
 
 public enum AudioFrameFactor: UInt16 {
-  case single = 1
-  case normal = 2
-  case safe = 4
+  case normal = 1
+  case safe = 2
   
   public var frameSize: UInt16 {
     // 64 samples per frame minimum

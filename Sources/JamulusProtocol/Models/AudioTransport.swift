@@ -37,7 +37,7 @@ public struct AudioTransportDetails: Equatable {
   /// Provides the bit rate to set for the Opus encoder,
   ///
   public func bitRatePerSec() -> Int32 {
-    let frameSize = blockFactor == .single ?
+    let frameSize = codec == .opus64 ?
     ApiConsts.frameSamples64 : 2 * ApiConsts.frameSamples64
     
     return Int32((sampleRate * opusPacketSize.rawValue * 8) / frameSize)
@@ -82,9 +82,9 @@ extension Data {
 extension AudioTransportDetails {
   
   ///
-  /// Default iOS configuration for initializing and standard use
+  /// Default stereo normal quality
   ///
-  public static var iOSDefault: Self {
+  public static var stereoNormal: Self {
     .init(packetSize: .stereoNormalDouble,
           blockFactor: .normal,
           channelCount: 2,
