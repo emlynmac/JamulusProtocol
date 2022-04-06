@@ -34,7 +34,7 @@ public struct AudioTransportDetails: Equatable {
   public var sequenceAudioPackets: Bool
   
   ///
-  /// Provides the bit rate to set for the Opus encoder,
+  /// Provides the bit rate to set for the Opus encoder, based on the size of the coded bytes
   ///
   public func bitRatePerSec() -> Int32 {
     let frameSize = codec == .opus64 ?
