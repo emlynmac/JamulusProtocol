@@ -303,10 +303,10 @@ extension JamulusProtocol {
           guard protocolState != .disconnecting else { return }
           
           if $1 {
-//            var data = $0
-//            data.append(audioPacketSequenceNext)
-//            connection.send(data)
-//          } else {
+            var data = $0
+            data.append(audioPacketSequenceNext)
+            connection.send(data)
+          } else {
             connection.send($0)
           }
         }

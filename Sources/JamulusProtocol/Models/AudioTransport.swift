@@ -56,8 +56,16 @@ public struct AudioTransportDetails: Equatable {
     let codec = AudioCodec(rawValue: codecVal) ?? .opus
     let flags: UInt16 = data.numericalValueAt(index: &offset)
     
+    var opusSize = OpusCompressedSize.stereoNormalDouble
+    if let parsed = OpusCompressedSize(rawValue: packetSize) {
+      // We parsed one without a sequence number
+      opusSize = parsed
+    } else if let parsed = OpusCompressedSize(rawValue: packetSize-1) {
+      // We parsed one with a sequence number
+      opusSize = parsed
+    }
     return AudioTransportDetails(
-      packetSize: OpusCompressedSize(rawValue: packetSize) ?? .stereoNormalDouble,
+      packetSize: opusSize,
       blockFactor: AudioFrameFactor(rawValue: blockFactor) ?? .normal,
       channelCount: channelCount,
       sampleRate: sampleRate,
@@ -68,7 +76,9 @@ public struct AudioTransportDetails: Equatable {
 
 extension Data {
   mutating func append(_ value: AudioTransportDetails) {
-    append(value.opusPacketSize.rawValue)
+    var opusSize = value.opusPacketSize.rawValue
+    if value.sequenceAudioPackets { opusSize += 1 }  // For sequence
+    append(opusSize)
     append(value.blockFactor.rawValue)
     append(value.channelCount)
     append(value.sampleRate)
@@ -88,6 +98,15 @@ extension AudioTransportDetails {
     .init(packetSize: .stereoNormalDouble,
           blockFactor: .normal,
           channelCount: 2,
+          sampleRate: UInt32(ApiConsts.sampleRate48kHz),
+          codec: .opus,
+          counterRequired: true)
+  }
+  
+  public static var monoNormal: Self {
+    .init(packetSize: .monoNormalDouble,
+          blockFactor: .normal,
+          channelCount: 1,
           sampleRate: UInt32(ApiConsts.sampleRate48kHz),
           codec: .opus,
           counterRequired: true)
