@@ -299,16 +299,13 @@ extension JamulusProtocol {
           let data = messageToData(message: message, nextSeq: sequenceNumber)
           connection.send(data)
         },
-        sendAudio: {
+        sendAudio: { data, addSequenceNumber in
           guard protocolState != .disconnecting else { return }
-          
-          if $1 {
-            var data = $0
+          var data = data
+          if addSequenceNumber {
             data.append(audioPacketSequenceNext)
-            connection.send(data)
-          } else {
-            connection.send($0)
           }
+          connection.send(data)
         }
       )
     }

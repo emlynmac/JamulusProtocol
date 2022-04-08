@@ -5,6 +5,8 @@ import Network
 public enum JamulusError: CustomStringConvertible, Equatable, Error {
   public var description: String {
     switch self {
+    case .audioConversionFailed:
+      return "Could not convert audio"
     case .connectionTimedOut:
       return "Server no longer available"
     case .bufferOverrun:
@@ -29,6 +31,7 @@ public enum JamulusError: CustomStringConvertible, Equatable, Error {
   case invalidAudioConfiguration
   case invalidPacket(Data)
   case opusError(Int32?)
+  case audioConversionFailed
   case opusNotConfigured
   case networkError(NWError)
   case noConnection(URL?)
