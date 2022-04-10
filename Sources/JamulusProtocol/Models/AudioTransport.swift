@@ -40,7 +40,7 @@ public struct AudioTransportDetails: Equatable {
     let frameSize = codec == .opus64 ?
     ApiConsts.frameSamples64 : 2 * ApiConsts.frameSamples64
     
-    return Int32((2 * sampleRate * opusPacketSize.rawValue * 8 * UInt32(channelCount))  / frameSize )
+    return Int32((sampleRate * opusPacketSize.rawValue * 8) / frameSize )
   }
   
   static func parseFrom(data: Data) -> AudioTransportDetails {
