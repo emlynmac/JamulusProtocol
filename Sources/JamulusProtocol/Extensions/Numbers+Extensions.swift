@@ -29,3 +29,17 @@ extension UInt8 {
     return Double(self) / Double(14)
   }
 }
+
+extension Float {
+  
+  ///
+  /// Scale a value for VU meter range
+  ///
+  public func scaledPower(minDb: Float = -80) -> Float {
+    guard self.isFinite else { return 0.0 }
+     
+    if self < minDb { return 0.0 }
+    else if self >= 1.0 { return 1.0 }
+    return (abs(minDb) - abs(self)) / abs(minDb)
+  }
+}
