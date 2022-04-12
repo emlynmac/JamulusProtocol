@@ -20,4 +20,25 @@ extension String {
     }
     return components.url
   }
+  
+  /// Attempts to parse a date from a jamulus chat message
+  public var chatDate: Date? {
+    if let found = dateFormatter.date(from: self) {
+      let bits = Calendar.current
+        .dateComponents([.hour, .minute,.second], from: found)
+      
+      return Calendar.current.date(
+        bySettingHour: bits.hour!, minute: bits.minute!, second: bits.second!,
+        of: Date(),
+        matchingPolicy: .strict,repeatedTimePolicy: .first, direction: .forward
+      )
+    }
+    return nil
+  }
+}
+
+var dateFormatter: DateFormatter {
+  let formatter = DateFormatter()
+  formatter.dateFormat = "(hh:mm:ss a)"
+  return formatter
 }
