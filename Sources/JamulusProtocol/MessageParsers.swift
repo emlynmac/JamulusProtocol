@@ -8,18 +8,18 @@ func parsePingFrom(data: Data, payload: Data) -> JamulusMessage {
     let timeStamp: UInt32 = payload.numericalValueAt(index: &index)
     return .ping(timeStamp: timeStamp)
   }
-  return .ping()
+  return .ping(timeStamp: 0)
 }
 
 func parsePingAndClientCountFrom(data: Data,
-                               payload: Data) -> JamulusMessage {
+                                 payload: Data) -> JamulusMessage {
   var index = 0
   if payload.count == 5 {
     let timeStamp: UInt32 = payload.numericalValueAt(index: &index)
     return .pingPlusClientCount(clientCount: UInt(payload[index]),
                                 timeStamp: timeStamp)
   }
-  return .pingPlusClientCount(clientCount: 0)
+  return .pingPlusClientCount(clientCount: 0, timeStamp: 0)
 }
 
 func parseChannelLevelsFrom(payload: Data) -> JamulusMessage {
@@ -57,7 +57,7 @@ private func parseChannelInfos(payload: Data) -> [ChannelInfo] {
 }
 
 func parseServerListWithDetailsFrom(payload: Data,
-                                 defaultHost: String) -> JamulusMessage {
+                                    defaultHost: String) -> JamulusMessage {
   let kMinServerListSize = 6
   
   var pos = 0
@@ -73,7 +73,7 @@ func parseServerListWithDetailsFrom(payload: Data,
 }
 
 func parseServerListFrom(payload: Data,
-                      defaultHost: String) -> JamulusMessage {
+                         defaultHost: String) -> JamulusMessage {
   let kMinServerListSize = 5
   var pos = 0
   var details: [ServerDetail] = []
@@ -88,7 +88,7 @@ func parseServerListFrom(payload: Data,
 }
 
 func parseDetailedServerListFrom(payload: Data,
-                              defaultHost: String) -> JamulusMessage {
+                                 defaultHost: String) -> JamulusMessage {
   let kMinServerListSize = 16
   var details: [ServerDetail] = []
   var pos = 0
@@ -135,8 +135,8 @@ func parseMuteChangeFrom(payload: Data) -> JamulusMessage {
 func parseChannelInfoFrom(payload: Data) -> JamulusMessage {
   var pos = 0
   return .sendChannelInfo(ChannelInfo.parseFromData(data: payload,
-                                                   pos: &pos,
-                                                   channelId: 0))
+                                                    pos: &pos,
+                                                    channelId: 0))
 }
 
 func parseVersionAndOs(payload: Data) -> (version: String, os: OsType) {
@@ -171,7 +171,7 @@ func parseSplitMessage(payload: Data) -> JamulusMessage {
   let id: UInt16 = payload.numericalValueAt(index: &pos)
   let totalParts: UInt8 = payload[pos]; pos += 1
   let part: UInt8 = payload[pos]; pos += 1
- 
+  
   return .splitMessageContainer(id: id,
                                 totalParts: totalParts, part: part,
                                 payload: payload[pos...])

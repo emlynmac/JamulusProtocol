@@ -5,10 +5,6 @@ import Foundation
 /// Jamulus Protocol messages
 ///
 public enum JamulusMessage: Equatable {
-  public static var timestamp: UInt32 {
-    UInt32(UInt64(Date().timeIntervalSince1970 * 1000) & 0xffff)
-  }
-  
   // MARK: - Connection Setup and Teardown
   /// Tell the client their channel ID on connection
   case clientId(id: UInt8)
@@ -104,12 +100,12 @@ public enum JamulusMessage: Equatable {
   
   /// Ping the server - used for determining connection state and
   /// can be used to determine jitter buffers to a degree
-  case ping(timeStamp: UInt32 = JamulusMessage.timestamp)
+  case ping(timeStamp: UInt32)
   
   /// Ping a server and get the number of connected clients
   /// Used primarily for evaluation a server prior to connecting
   case pingPlusClientCount(clientCount: UInt = 0,
-                           timeStamp: UInt32 = JamulusMessage.timestamp)
+                           timeStamp: UInt32)
   
   /// Jamulus Protocol Message ID
   var messageId: UInt16 {
@@ -223,7 +219,8 @@ extension JamulusMessage {
     case 1015: return parseChannelLevelsFrom(payload: payload)
       
       // Both
-    case 1: return .ack(ackType: messageType, sequenceNumber: UInt8(sequence))
+    case 1: return .ack(ackType: payload.numericalValueAt(index: &payloadIndex),
+                        sequenceNumber: UInt8(sequence))
     case 10: return .jitterBufSize(size: payload.numericalValueAt(index: &payloadIndex))
     case 11: return .requestJitterBufSize
     case 18: return parseChatTextFrom(payload: payload)

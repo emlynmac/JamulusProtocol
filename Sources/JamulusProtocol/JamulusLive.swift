@@ -21,7 +21,11 @@ extension JamulusProtocol {
         assertionFailure("Failed to open network connection")
         return nil
       }
-      
+      // Connection time
+      let connectionStart = Date()
+      var packetTimestamp: UInt32 {
+        UInt32(Date().timeIntervalSince(connectionStart) * 1000)
+      }
       // Maintain packet sequence
       var packetSequence: UInt8 = 0 // For UDP reconstruction
       var packetSequenceNext: UInt8 { nextSequenceNumber(val: &packetSequence) }
@@ -50,8 +54,8 @@ extension JamulusProtocol {
       ///
       /// Process a packet from the UdpConnection layer
       ///
-      /// - Returns: true if the packet should be published out of the stack
-      func handleReceive(packet: JamulusPacket) -> Bool {
+      /// - Returns: packet to forward up, or nil to consume
+      func handleReceive(packet: JamulusPacket) -> JamulusPacket? {
         switch packet {
         case let .ackMessage(ackType, sequenceNumber):
           // An acked packet should be removed from the retransmit queue
@@ -75,7 +79,7 @@ extension JamulusProtocol {
           
           switch message {
           case .clientId(id: let id):
-            guard protocolState != .disconnecting else { return false }
+            guard protocolState != .disconnecting else { return nil }
             protocolState = .connected(clientId: id)
             
           case .requestSplitMessagesSupport:
@@ -85,7 +89,7 @@ extension JamulusProtocol {
                 nextSeq: packetSequenceNext
               )
             )
-            return false // Don't send this packet up
+            return nil // Don't send this packet up
             
           case let .splitMessageContainer(id, totalParts, part, payload):
             if let messageData = handleSplitMessage(
@@ -100,10 +104,26 @@ extension JamulusProtocol {
             
           default: break
           }
-
+          
         case .messageNoAck(let message):
-          if message.messageId == 1001 { // Ping
+          switch message {
+            // Turn the ping into a relative round-trip value for upper layer
+          case .ping(timeStamp: let ts):
             lastPingReceived = Date().timeIntervalSince1970
+            
+            let roundtrip = packetTimestamp - ts
+            return .messageNeedingAck(.ping(timeStamp: roundtrip), 0)
+            
+          case .pingPlusClientCount(clientCount: let clientCount,
+                                    timeStamp: let ts):
+            let roundtrip = packetTimestamp - ts
+            return .messageNeedingAck(
+              .pingPlusClientCount(
+                clientCount: clientCount,
+                timeStamp: roundtrip),
+              0)
+          default:
+            break
           }
           
         case .audio:
@@ -119,12 +139,12 @@ extension JamulusProtocol {
         default:
           break
         }
-        return true
+        return packet
       }
       
       
       return JamulusProtocol(
-        open: {           
+        open: {
           // Monitor the underlying UDP connection
           let connectionState = connection.statePublisher
             .handleEvents(
@@ -173,13 +193,17 @@ extension JamulusProtocol {
                         switch serverKind {
                         case .mainServer:
                           connection.send(
-                            messageToData(message: .ping(),
+                            messageToData(message: .ping(timeStamp: packetTimestamp),
                                           nextSeq: packetSequenceNext))
                           lastPingSent = Date().timeIntervalSince1970
                         case .listing:
                           connection.send(
-                            messageToData(message: .pingPlusClientCount(),
-                                          nextSeq: packetSequenceNext))
+                            messageToData(
+                              message: .pingPlusClientCount(
+                                clientCount: 0, timeStamp: packetTimestamp
+                              ),
+                              nextSeq: packetSequenceNext)
+                          )
                           lastPingSent = Date().timeIntervalSince1970
                           
                         case .directoryLookup:
@@ -259,9 +283,8 @@ extension JamulusProtocol {
                 
               },
               receiveValue: { packet in
-                if handleReceive(packet: packet) {
-                  // Forward packet up
-                  publisher.send(packet)
+                if let forwardPacket = handleReceive(packet: packet) {
+                  publisher.send(forwardPacket)
                 }
               }
             )
