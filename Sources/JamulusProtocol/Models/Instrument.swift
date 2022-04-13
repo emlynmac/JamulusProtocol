@@ -1,8 +1,13 @@
 import Foundation
 
-public enum Instrument: UInt32, CustomStringConvertible, CaseIterable, Identifiable {
+public enum Instrument: UInt32,
+                        CustomStringConvertible,
+                        CaseIterable, Identifiable {
   public var id: Int { Int(rawValue) }
   
+  public static var alphabetized: [Instrument] {
+    Instrument.allCases.sorted { $0.name < $1.name }
+  }
   case none,
        drums,
        djembe,
