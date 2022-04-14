@@ -10,7 +10,7 @@ public struct ChannelInfo: Equatable {
               city: String,
               muted: Bool = false,
               volume: UInt8 = 0,
-              gain: UInt16 = 0,
+              gain: UInt16 = UInt16(Int16.max/2),
               pan: UInt16 = ChannelPan.center) {
     self.channelId = channelId
     self.countryId = countryId
@@ -33,7 +33,7 @@ public struct ChannelInfo: Equatable {
   
   public var muted: Bool = false
   public var volume: UInt8 = 0
-  public var gain: UInt16 = 0
+  public var gain: UInt16 = UInt16(Int16.max/2)
   public var pan: UInt16 = ChannelPan.center
   
   static func parseFromData(data: Data, pos: inout Int, channelId: UInt8?) -> ChannelInfo {

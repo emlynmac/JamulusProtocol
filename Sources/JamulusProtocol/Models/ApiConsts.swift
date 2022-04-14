@@ -36,8 +36,8 @@ public enum OpusCompressedSize: UInt32 {
 
 public struct ChannelPan: Equatable {
   public static let left: UInt16 = 0
-  public static let center: UInt16 = 16384
-  public static let right: UInt16 = 32768
+  public static let center: UInt16 = UInt16(Int16.max/2)
+  public static let right: UInt16 = UInt16(Int16.max)
   
   var pan: UInt16 = ChannelPan.center
 }
