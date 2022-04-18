@@ -12,6 +12,10 @@ public enum ApiConsts {
   public static let messageIdAckStart = 9
   public static let retransmitTimeout: TimeInterval = 1
   public static let connectionTimeout: TimeInterval = 15
+  public static let minJitterBuffer = 1
+  public static let defaultJitterBuffer = 10
+  public static let maxJitterBuffer = 20
+  public static let autoJitterBuffer = maxJitterBuffer + 1
 }
 
 ///
