@@ -95,20 +95,90 @@ extension AudioTransportDetails {
   /// Default stereo normal quality
   ///
   public static var stereoNormal: Self {
-    .init(packetSize: .stereoNormalDouble,
-          blockFactor: .normal,
-          channelCount: 2,
-          sampleRate: UInt32(ApiConsts.sampleRate48kHz),
-          codec: .opus,
-          counterRequired: true)
+    .init(
+      packetSize: .stereoNormalDouble,
+      blockFactor: .normal,
+      channelCount: 2,
+      sampleRate: UInt32(ApiConsts.sampleRate48kHz),
+      codec: .opus,
+      counterRequired: true
+    )
   }
   
   public static var monoNormal: Self {
-    .init(packetSize: .monoNormalDouble,
-          blockFactor: .normal,
-          channelCount: 1,
-          sampleRate: UInt32(ApiConsts.sampleRate48kHz),
-          codec: .opus,
-          counterRequired: true)
+    .init(
+      packetSize: .monoNormalDouble,
+      blockFactor: .normal,
+      channelCount: 1,
+      sampleRate: UInt32(ApiConsts.sampleRate48kHz),
+      codec: .opus,
+      counterRequired: true
+    )
+  }
+  
+  public static var stereoHighQuality: Self {
+    .init(
+      packetSize: .stereoHighQualityDouble,
+      blockFactor: .normal,
+      channelCount: 2,
+      sampleRate: UInt32(ApiConsts.sampleRate48kHz),
+      codec: .opus,
+      counterRequired: true
+    )
+  }
+  
+  public static var monoHighQuality: Self {
+    .init(
+      packetSize: .monoHighQualityDouble,
+      blockFactor: .normal,
+      channelCount: 1,
+      sampleRate: UInt32(ApiConsts.sampleRate48kHz),
+      codec: .opus,
+      counterRequired: true
+    )
+  }
+  
+  public static var stereoNormalQuality64: Self {
+    .init(
+      packetSize: .stereoNormal,
+      blockFactor: .normal,
+      channelCount: 2,
+      sampleRate: UInt32(ApiConsts.sampleRate48kHz),
+      codec: .opus64,
+      counterRequired: true
+    )
+  }
+  
+  public static var monoNormalQuality64: Self {
+    .init(
+      packetSize: .monoNormal,
+      blockFactor: .normal,
+      channelCount: 1,
+      sampleRate: UInt32(ApiConsts.sampleRate48kHz),
+      codec: .opus64,
+      counterRequired: true
+    )
+  }
+  
+  public static var stereoHighQuality64: Self {
+    .init(
+      packetSize: .stereoHighQuality,
+      blockFactor: .normal,
+      channelCount: 2,
+      sampleRate: UInt32(ApiConsts.sampleRate48kHz),
+      codec: .opus64,
+      counterRequired: true
+    )
+  }
+  
+  public static var monoHighQuality64: Self {
+    .init(
+      packetSize: .monoHighQuality,
+      blockFactor: .normal,
+      channelCount: 1,
+      sampleRate: UInt32(ApiConsts.sampleRate48kHz),
+      codec: .opus64,
+      counterRequired: true
+    )
   }
 }
