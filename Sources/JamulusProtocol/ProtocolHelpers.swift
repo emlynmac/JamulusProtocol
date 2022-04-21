@@ -18,7 +18,11 @@ func jamulusCrc(for data: Data) -> UInt16 {
 }
 
 /// Simple sequence handler
-func nextSequenceNumber(val: inout UInt8) -> UInt8 { val &+ 1 }
+func nextSequenceNumber(val: inout UInt8) -> UInt8 {
+  let newVal = val &+ 1
+  val = newVal
+  return val
+}
 
 /// Serialize a jamulus message to send over the network
 func messageToData(message: JamulusMessage, nextSeq: UInt8) -> Data {

@@ -108,7 +108,7 @@ public enum JamulusMessage: Equatable {
                            timeStamp: UInt32)
   
   /// Jamulus Protocol Message ID
-  var messageId: UInt16 {
+  public var messageId: UInt16 {
     switch self {
       
       // Messages requiring acks

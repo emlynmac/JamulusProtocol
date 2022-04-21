@@ -5,6 +5,8 @@ import Network
 public enum JamulusError: CustomStringConvertible, Equatable, Error {
   public var description: String {
     switch self {
+    case .avAudioError(let error):
+      return error.localizedDescription
     case .audioConversionFailed:
       return "Could not convert audio"
     case .connectionTimedOut:
@@ -26,6 +28,7 @@ public enum JamulusError: CustomStringConvertible, Equatable, Error {
     }
   }
   
+  case avAudioError(NSError)
   case connectionTimedOut
   case bufferOverrun
   case invalidAudioConfiguration
