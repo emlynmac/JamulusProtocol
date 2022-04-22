@@ -39,6 +39,7 @@ extension String {
 
 var dateFormatter: DateFormatter {
   let formatter = DateFormatter()
-  formatter.dateFormat = "(hh:mm:ss a)"
+  formatter.dateFormat = "(hh:mm:ss aa)"
+  formatter.locale = Locale(identifier: "en_US_POSIX")
   return formatter
 }

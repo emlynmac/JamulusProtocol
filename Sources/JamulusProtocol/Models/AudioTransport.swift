@@ -12,7 +12,7 @@ public struct AudioTransportDetails: Equatable {
     blockFactor: AudioFrameFactor = .normal,
     channelCount: UInt8 = 2,
     sampleRate: UInt32 = UInt32(ApiConsts.sampleRate48kHz),
-    codec: AudioCodec = .opus,
+    codec: JamulusAudioCodec = .opus,
     counterRequired: Bool = true) {
     self.opusPacketSize = packetSize
     self.blockFactor = blockFactor
@@ -28,7 +28,7 @@ public struct AudioTransportDetails: Equatable {
   public var blockFactor: AudioFrameFactor
   public var channelCount: UInt8
   public var sampleRate: UInt32
-  public var codec: AudioCodec
+  public var codec: JamulusAudioCodec
   
   /// From jamulus server 3.6.0 onwards, append a byte sequence number to the audio packet
   public var sequenceAudioPackets: Bool
@@ -53,7 +53,7 @@ public struct AudioTransportDetails: Equatable {
     let channelCount: UInt8 = data.numericalValueAt(index: &offset)
     let sampleRate: UInt32 = data.numericalValueAt(index: &offset)
     let codecVal: UInt16 = data.numericalValueAt(index: &offset)
-    let codec = AudioCodec(rawValue: codecVal) ?? .opus
+    let codec = JamulusAudioCodec(rawValue: codecVal) ?? .opus
     let flags: UInt16 = data.numericalValueAt(index: &offset)
     
     var opusSize = OpusCompressedSize.stereoNormalDouble
@@ -180,5 +180,48 @@ extension AudioTransportDetails {
       codec: .opus64,
       counterRequired: true
     )
+  }
+}
+
+extension AudioTransportDetails {
+  
+  /// Provides an updated transport property details for new settings included
+  public func presetWithChanges(newCodec: JamulusAudioCodec) -> Self {
+    guard codec != newCodec else { return self }
+    
+    if channelCount == 1 {
+      switch newCodec {
+      case .raw, .celt: return self
+      case .opus:
+        switch opusPacketSize {
+        case .monoHighQualityDouble: return .monoHighQuality
+        case .monoNormalDouble: return .monoNormal
+        default: return .monoNormal
+        }
+      case .opus64:
+        switch opusPacketSize {
+        case .monoHighQuality: return .monoHighQuality64
+        case .monoNormal: return .monoNormalQuality64
+        default: return .monoNormalQuality64
+        }
+      }
+    } else if channelCount == 2 {
+      switch newCodec {
+      case .raw, .celt: return self
+      case .opus:
+        switch opusPacketSize {
+        case .stereoHighQuality: return .stereoHighQuality
+        case .stereoNormal: return .stereoNormal
+        default: return .stereoNormal
+        }
+      case .opus64:
+        switch opusPacketSize {
+        case .stereoHighQualityDouble: return .stereoHighQuality64
+        case .stereoNormalDouble: return .stereoNormalQuality64
+        default: return .stereoNormalQuality64
+        }
+      }
+    }
+    return self
   }
 }

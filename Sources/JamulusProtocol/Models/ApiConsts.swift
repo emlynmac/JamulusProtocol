@@ -46,7 +46,9 @@ public struct ChannelPan: Equatable {
   var pan: UInt16 = ChannelPan.center
 }
 
-public enum AudioCodec: UInt16 {
+public enum JamulusAudioCodec: UInt16, Identifiable {
+  public var id: Self { self }
+  
   case raw = 0
   case celt = 1
   case opus = 2
