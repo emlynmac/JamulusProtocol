@@ -270,7 +270,7 @@ extension JamulusMessage {
       
     case .muteStateChange(let channel, let muted):
       payload.append(channel)
-      payload.append(muted ? 1 : 0)
+      payload.append(muted ? UInt8(1) : UInt8(0))
       
       // Both
     case .ack(let ackType, _): payload.append(ackType)
