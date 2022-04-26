@@ -91,6 +91,7 @@ extension Data {
 
 extension AudioTransportDetails {
   
+  // MARK: - 128 frame presets
   ///
   /// Default stereo normal quality
   ///
@@ -106,37 +107,38 @@ extension AudioTransportDetails {
   }
   
   public static var monoNormal: Self {
-    .init(
-      packetSize: .monoNormalDouble,
-      blockFactor: .normal,
-      channelCount: 1,
-      sampleRate: UInt32(ApiConsts.sampleRate48kHz),
-      codec: .opus,
-      counterRequired: true
-    )
+    var mono = stereoNormal
+    mono.channelCount = 1
+    mono.opusPacketSize = .monoNormalDouble
+    return mono
   }
   
   public static var stereoHighQuality: Self {
-    .init(
-      packetSize: .stereoHighQualityDouble,
-      blockFactor: .normal,
-      channelCount: 2,
-      sampleRate: UInt32(ApiConsts.sampleRate48kHz),
-      codec: .opus,
-      counterRequired: true
-    )
+    var high = stereoNormal
+    high.opusPacketSize = .stereoHighQualityDouble
+    return high
   }
   
   public static var monoHighQuality: Self {
-    .init(
-      packetSize: .monoHighQualityDouble,
-      blockFactor: .normal,
-      channelCount: 1,
-      sampleRate: UInt32(ApiConsts.sampleRate48kHz),
-      codec: .opus,
-      counterRequired: true
-    )
+    var mono = monoNormal
+    mono.opusPacketSize = .monoHighQualityDouble
+    return mono
   }
+  
+  public static var stereoLowQuality: Self {
+    var high = stereoNormal
+    high.opusPacketSize = .stereoLowQualityDouble
+    return high
+  }
+  
+  public static var monoLowQuality: Self {
+    var mono = monoNormal
+    mono.opusPacketSize = .monoLowQualityDouble
+    return mono
+  }
+  
+  
+  // MARK: - 64 frame presets
   
   public static var stereoNormalQuality64: Self {
     .init(
@@ -150,36 +152,34 @@ extension AudioTransportDetails {
   }
   
   public static var monoNormalQuality64: Self {
-    .init(
-      packetSize: .monoNormal,
-      blockFactor: .normal,
-      channelCount: 1,
-      sampleRate: UInt32(ApiConsts.sampleRate48kHz),
-      codec: .opus64,
-      counterRequired: true
-    )
+    var mono = stereoNormalQuality64
+    mono.channelCount = 1
+    mono.opusPacketSize = .monoNormal
+    return mono
   }
-  
+
   public static var stereoHighQuality64: Self {
-    .init(
-      packetSize: .stereoHighQuality,
-      blockFactor: .normal,
-      channelCount: 2,
-      sampleRate: UInt32(ApiConsts.sampleRate48kHz),
-      codec: .opus64,
-      counterRequired: true
-    )
+    var high = stereoNormalQuality64
+    high.opusPacketSize = .stereoHighQuality
+    return high
   }
   
   public static var monoHighQuality64: Self {
-    .init(
-      packetSize: .monoHighQuality,
-      blockFactor: .normal,
-      channelCount: 1,
-      sampleRate: UInt32(ApiConsts.sampleRate48kHz),
-      codec: .opus64,
-      counterRequired: true
-    )
+    var mono = monoNormalQuality64
+    mono.opusPacketSize = .monoHighQuality
+    return mono
+  }
+  
+  public static var stereoLowQuality64: Self {
+    var high = stereoNormalQuality64
+    high.opusPacketSize = .stereoLowQuality
+    return high
+  }
+  
+  public static var monoLowQuality64: Self {
+    var mono = monoNormalQuality64
+    mono.opusPacketSize = .monoLowQuality
+    return mono
   }
 }
 
@@ -220,6 +220,35 @@ extension AudioTransportDetails {
         case .stereoNormalDouble: return .stereoNormalQuality64
         default: return .stereoNormalQuality64
         }
+      }
+    }
+    return self
+  }
+  
+  ///
+  /// Returns a new preset with the requested quality
+  ///
+  public func presetWithChanges(newQuality: JamulusAudioQuality) -> Self {
+
+    switch newQuality {
+    case .low:
+      if codec == .opus {
+        return channelCount == 1 ? .monoLowQuality : .stereoLowQuality
+      } else if codec == .opus64 {
+        return channelCount == 1 ? .monoLowQuality64 : .stereoLowQuality64
+      }
+      
+    case .normal:
+      if codec == .opus {
+        return channelCount == 1 ? .monoNormal : .stereoNormal
+      } else if codec == .opus64 {
+        return channelCount == 1 ? .monoNormalQuality64 : .stereoNormalQuality64
+      }
+    case .high:
+      if codec == .opus {
+        return channelCount == 1 ? .monoHighQuality : .stereoHighQuality
+      } else if codec == .opus64 {
+        return channelCount == 1 ? .monoHighQuality64 : .stereoHighQuality64
       }
     }
     return self
