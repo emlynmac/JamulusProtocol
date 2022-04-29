@@ -33,6 +33,12 @@ public struct AudioTransportDetails: Equatable {
   /// From jamulus server 3.6.0 onwards, append a byte sequence number to the audio packet
   public var sequenceAudioPackets: Bool
   
+  public var frameSize: UInt16 {
+    let multiplier: UInt16 = codec == .opus ? 2 : 1
+    // 64 samples per frame minimum
+    return UInt16(ApiConsts.frameSamples64) * blockFactor.rawValue * multiplier
+  }
+  
   ///
   /// Provides the bit rate to set for the Opus encoder, based on the size of the coded bytes
   ///

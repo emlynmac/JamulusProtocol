@@ -58,11 +58,6 @@ public enum JamulusAudioCodec: UInt16, Identifiable {
 public enum AudioFrameFactor: UInt16 {
   case normal = 1
   case safe = 2
-  
-  public var frameSize: UInt16 {
-    // 64 samples per frame minimum
-    return UInt16(ApiConsts.frameSamples64) * rawValue
-  }
 }
 
 public enum OsType: UInt8, CustomStringConvertible {
