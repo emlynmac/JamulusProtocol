@@ -5,8 +5,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/emlynmac/udpconnection",
       "state" : {
-        "branch" : "main",
-        "revision" : "cec31f4c755bbaffc118500191beaacdaf2b4329"
+        "branch" : "migrate-to-async",
+        "revision" : "e3d327a50f276b7d20744feea1898c2dcbded7a4"
       }
     }
   ],
