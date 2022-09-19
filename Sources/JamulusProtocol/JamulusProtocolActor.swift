@@ -7,8 +7,15 @@ actor JamulusProtocolActor {
   
   private var connection: UdpConnection
   private var serverKind: ConnectionKind
-  private var state: JamulusState = .disconnected(error: nil)
+  private var state: JamulusState = .disconnected(error: nil) {
+    didSet {
+      stateContinuation?.yield(state)
+    }
+  }
+  
   private var keepAlive: AnyCancellable?
+  private var stateStream: AsyncThrowingStream<JamulusState, Error>?
+  private var stateContinuation: AsyncThrowingStream<JamulusState, Error>.Continuation?
   
   private var packetSequence: UInt8 = 0
   private var packetSequenceNext: UInt8 { nextSequenceNumber(val: &packetSequence) }
@@ -46,6 +53,64 @@ actor JamulusProtocolActor {
   deinit {
     print("Protocol deinit")
   }
+  
+  private func open() -> AsyncThrowingStream<JamulusState, Error> {
+#if DEBUG
+     print("UdpConnection open called")
+#endif
+    
+    if let existing = stateStream {
+#if DEBUG
+     print("existing connection found...")
+#endif
+      return existing
+    }
+ 
+    stateStream = AsyncThrowingStream<JamulusState, Error> { continuation in
+      stateContinuation = continuation
+      let task = Task {
+#if DEBUG
+        print("UdpConnection open task started")
+#endif
+        for await value in connection.connectionState {
+#if DEBUG
+          print("UdpConnection state: \(value)")
+#endif
+          switch value {
+          case .ready:
+            state = .connecting
+            if self.serverKind != .mainServer {
+              state = .connected(clientId: nil)
+            }
+            keepAlive = startConnectionHeartbeat(continuation: continuation)
+            
+          case .failed(let error):
+            let jamError = JamulusError.networkError(error)
+            state = .disconnected(error: jamError)
+            continuation.finish(throwing: jamError)
+            
+          case .cancelled:
+            state = .disconnected()
+            break
+            
+          default:
+            break
+          }
+          
+        } // Await loop on the connection state
+        
+        continuation.finish()
+        print("KeepAlive and connection cancel")
+        keepAlive?.cancel()
+        connection.cancel()
+      }
+      continuation.onTermination = { _ in
+        task.cancel()
+      }
+    }
+    return stateStream!
+  }
+  
   ///
   /// Process a packet from the UdpConnection layer
   ///
@@ -123,13 +188,22 @@ actor JamulusProtocolActor {
       
     case .audio:
       if state == .disconnecting {
-        // Keep sending a disconnect message until the audio stops
-        lastAudioPacketTime = Date().timeIntervalSince1970
-        connection.send(
-          messageToData(
-            message: .disconnect,
-            nextSeq: packetSequenceNext)
-        )
+        print("Disconnecting, last audio packet: \(lastAudioPacketTime)")
+        let now = Date().timeIntervalSince1970
+        print("diff: \(now - lastAudioPacketTime)")
+        if now - lastAudioPacketTime < 0.1 {
+          // Keep sending a disconnect message until the audio stops
+          lastAudioPacketTime = now
+          print("disconnect packet sent")
+          connection.send(
+            messageToData(
+              message: .disconnect,
+              nextSeq: packetSequenceNext)
+          )
+        } else {
+          print("disconnected")
+          state = .disconnected()
+        }
       }
       
     default:
@@ -146,52 +220,7 @@ extension JamulusProtocolActor {
   var protocolInterface: () -> JamulusProtocol {
     return {
       .init(
-        open: { [self] in
-#if DEBUG
-          print("UdpConnection open called")
-#endif
-          return AsyncThrowingStream<JamulusState, Error> { continuation in
-            let task = Task {
-#if DEBUG
-          print("UdpConnection open task started")
-#endif
-              for await value in connection.connectionState {
-#if DEBUG
-                print("UdpConnection state: \(value)")
-#endif
-                switch value {
-                case .ready:
-                  state = .connecting
-                  if self.serverKind != .mainServer {
-                    state = .connected(clientId: nil)
-                  }
-                  keepAlive = startConnectionHeartbeat(continuation: continuation)
-                  continuation.yield(state)
-                  
-                case .failed(let error):
-                  let jamError = JamulusError.networkError(error)
-                  state = .disconnected(error: jamError)
-                  continuation.finish(throwing: jamError)
-                  
-                case .cancelled:
-                  state = .disconnected()
-                  break
-                  
-                default:
-                  break
-                }
-              } // Await loop on the connection state
-              
-              continuation.finish()
-              print("KeepAlive and connection cancel")
-              keepAlive?.cancel()
-              connection.cancel()
-            }
-            continuation.onTermination = { _ in
-              task.cancel()
-            }
-          }
-        },
+        open: self.open,
         receivedData: { [unowned self] in
           let retransmitQueue = self.startRetransmitQueue()
           
