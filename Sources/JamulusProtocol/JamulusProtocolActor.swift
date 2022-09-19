@@ -188,28 +188,24 @@ actor JamulusProtocolActor {
       
     case .audio:
       if state == .disconnecting {
-        print("Disconnecting, last audio packet: \(lastAudioPacketTime)")
         let now = Date().timeIntervalSince1970
-        print("diff: \(now - lastAudioPacketTime)")
-        if now - lastAudioPacketTime < 0.1 {
+        if now - lastAudioPacketTime < 0.2 {
           // Keep sending a disconnect message until the audio stops
           lastAudioPacketTime = now
-          print("disconnect packet sent")
           connection.send(
             messageToData(
               message: .disconnect,
               nextSeq: packetSequenceNext)
           )
         } else {
-          print("disconnected")
           state = .disconnected()
         }
+        return nil // Don't send this packet up
       }
       
     default:
       break
     }
-    
     return packet
   }
 }
