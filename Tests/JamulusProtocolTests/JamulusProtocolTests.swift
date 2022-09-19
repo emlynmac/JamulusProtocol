@@ -6,24 +6,29 @@ import XCTest
 final class JamulusProtocolTests: XCTestCase {
     func testExample() throws {
       
-//      let test = JamulusProtocol.init(open: {
-//        <#code#>
-//      }, receivedData: <#T##AsyncStream<JamulusPacket>#>) { <#JamulusMessage#> in
-//        <#code#>
-//      } sendAudio: { <#Data#>, <#Bool#> in
-//        <#code#>
-//      }
-
+      let test = JamulusProtocol.init(
+        open: {
+          AsyncThrowingStream {
+            JamulusState.connected(clientId: 69)
+          }
+        },
+        receivedData: AsyncStream(
+          unfolding: {
+            .messageNeedingAck(
+              .clientList(
+                channelInfo: []
+              ),
+              69
+            )
+          }),
+        send: { message in
+          print("Received message: \(message)")
+        },
+        sendAudio: { _, _ in
+          // Code to get audio and send
+        }
+      )
       
-//      let test = JamulusProtocol(
-//        open: Just(ConnectionState.init(rawValue: .ready))
-//          .setFailureType(to: JamulusError.self)
-//          .eraseToAnyPublisher(),
-//        receiveDataPublisher: PassthroughSubject<JamulusPacket, Never>()
-//          .eraseToAnyPublisher(),
-//        send: { _ in },
-//        sendAudio: { _, _ in }
-//      )
-//      XCTAssertNotNil(test)
+      XCTAssertNotNil(test)
     }
 }

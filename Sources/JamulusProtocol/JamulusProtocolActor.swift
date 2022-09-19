@@ -43,6 +43,9 @@ actor JamulusProtocolActor {
     self.serverKind = serverKind
   }
   
+  deinit {
+    print("Protocol deinit")
+  }
   ///
   /// Process a packet from the UdpConnection layer
   ///
@@ -143,9 +146,15 @@ extension JamulusProtocolActor {
   var protocolInterface: () -> JamulusProtocol {
     return {
       .init(
-        open: { [unowned self] in
-          AsyncThrowingStream<JamulusState, Error> { continuation in
+        open: { [self] in
+#if DEBUG
+          print("UdpConnection open called")
+#endif
+          return AsyncThrowingStream<JamulusState, Error> { continuation in
             let task = Task {
+#if DEBUG
+          print("UdpConnection open task started")
+#endif
               for await value in connection.connectionState {
 #if DEBUG
                 print("UdpConnection state: \(value)")
@@ -157,6 +166,7 @@ extension JamulusProtocolActor {
                     state = .connected(clientId: nil)
                   }
                   keepAlive = startConnectionHeartbeat(continuation: continuation)
+                  continuation.yield(state)
                   
                 case .failed(let error):
                   let jamError = JamulusError.networkError(error)
@@ -165,7 +175,6 @@ extension JamulusProtocolActor {
                   
                 case .cancelled:
                   state = .disconnected()
-                  continuation.finish()
                   break
                   
                 default:
@@ -173,6 +182,8 @@ extension JamulusProtocolActor {
                 }
               } // Await loop on the connection state
               
+              continuation.finish()
+              print("KeepAlive and connection cancel")
               keepAlive?.cancel()
               connection.cancel()
             }
@@ -290,7 +301,7 @@ extension JamulusProtocolActor {
               lastPingSent = Date().timeIntervalSince1970
               
             case .listing:
-              connection.send(
+	              connection.send(
                 messageToData(
                   message: .pingPlusClientCount(
                     clientCount: 0, timeStamp: packetTimestamp
