@@ -25,6 +25,8 @@ public enum JamulusError: CustomStringConvertible, Equatable, Error {
       return "Network error: \(nwError.localizedDescription)"
     case .noConnection(let url):
       return "Could not connect \(url != nil ? "to \(url!.absoluteString)" : "")"
+    case .audioNotPermitted:
+      return "You need to permit audio recording in permissions"
     }
   }
   
@@ -38,6 +40,7 @@ public enum JamulusError: CustomStringConvertible, Equatable, Error {
   case opusNotConfigured
   case networkError(NWError)
   case noConnection(URL?)
+  case audioNotPermitted
 
   private func opusErrorString(_ val: Int32?) -> String {
     switch val {

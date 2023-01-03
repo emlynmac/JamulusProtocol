@@ -24,7 +24,7 @@ actor JamulusProtocolActor {
   
   // Retransmit un-acked packets
   private var unAckedMessages = [TimeInterval: (seq: UInt8, message: JamulusMessage)]()
- 
+  
   // Connection time
   let connectionStart = Date()
   var packetTimestamp: UInt32 {
@@ -40,8 +40,8 @@ actor JamulusProtocolActor {
   private var splitMessages: [UInt16: [Data?]] = [:]
   
   init?(url: URL,
-       serverKind: ConnectionKind,
-       receiveQueue: DispatchQueue) {
+        serverKind: ConnectionKind,
+        receiveQueue: DispatchQueue) {
     guard let connection = UdpConnection.live(url: url, queue: receiveQueue) else {
       assertionFailure("Failed to open network connection")
       return nil
@@ -56,16 +56,16 @@ actor JamulusProtocolActor {
   
   private func open() -> AsyncThrowingStream<JamulusState, Error> {
 #if DEBUG
-     print("UdpConnection open called")
+    print("UdpConnection open called")
 #endif
     
     if let existing = stateStream {
 #if DEBUG
-     print("existing connection found...")
+      print("existing connection found...")
 #endif
       return existing
     }
- 
+    
     stateStream = AsyncThrowingStream<JamulusState, Error> { continuation in
       stateContinuation = continuation
       let task = Task {
@@ -326,7 +326,7 @@ extension JamulusProtocolActor {
               lastPingSent = Date().timeIntervalSince1970
               
             case .listing:
-	              connection.send(
+              connection.send(
                 messageToData(
                   message: .pingPlusClientCount(
                     clientCount: 0, timeStamp: packetTimestamp
