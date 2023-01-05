@@ -15,6 +15,10 @@ public enum JamulusError: CustomStringConvertible, Equatable, Error {
       return "Network receive buffer overflow"
     case .invalidAudioConfiguration:
       return "Audio configuration invalid"
+    case .noInputDevice:
+      return "No input device configured"
+    case .noOutputDevice:
+      return "No output device configured"
     case .invalidPacket:
       return "Packet was not valid"
     case .opusError(let val):
@@ -34,6 +38,8 @@ public enum JamulusError: CustomStringConvertible, Equatable, Error {
   case connectionTimedOut
   case bufferOverrun
   case invalidAudioConfiguration
+  case noInputDevice
+  case noOutputDevice
   case invalidPacket(Data)
   case opusError(Int32?)
   case audioConversionFailed

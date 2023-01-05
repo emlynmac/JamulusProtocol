@@ -9,6 +9,11 @@ actor JamulusProtocolActor {
   private var serverKind: ConnectionKind
   private var state: JamulusState = .disconnected(error: nil) {
     didSet {
+      if case let .disconnected(error) = state,
+         let error {
+        stateContinuation?.finish(throwing: error)
+        return
+      }
       stateContinuation?.yield(state)
     }
   }
@@ -82,12 +87,13 @@ actor JamulusProtocolActor {
             if self.serverKind != .mainServer {
               state = .connected(clientId: nil)
             }
-            keepAlive = startConnectionHeartbeat(continuation: continuation)
+            keepAlive = startConnectionHeartbeat()
             
-          case .failed(let error):
-            let jamError = JamulusError.networkError(error)
-            state = .disconnected(error: jamError)
-            continuation.finish(throwing: jamError)
+          case .waiting(let error),
+              .failed(let error):
+            state = .disconnected(
+              error: JamulusError.networkError(error)
+            )
             
           case .cancelled:
             state = .disconnected()
@@ -99,11 +105,11 @@ actor JamulusProtocolActor {
           
         } // Await loop on the connection state
         
-        continuation.finish()
         print("KeepAlive and connection cancel")
         keepAlive?.cancel()
         connection.cancel()
       }
+      
       continuation.onTermination = { _ in
         task.cancel()
       }
@@ -276,75 +282,77 @@ extension JamulusProtocolActor {
   }
   
   private func startRetransmitQueue() -> AnyCancellable {
-    Timer.publish(every: 2, on: .main, in: .default)
-      .autoconnect()
-      .sink { [unowned self] _ in
-        
-        // Handle any retransmit of un-acked packets
-        let now = Date().timeIntervalSince1970
-        let packetKeys = unAckedMessages.keys.sorted()
-          .filter({ $0 < now - ApiConsts.retransmitTimeout })
-        
-        // Remove any old un-acked packets
-        let staleKeys = packetKeys.filter({ $0 < now - 10 })
-        staleKeys.forEach({ unAckedMessages.removeValue(forKey: $0) })
-        
-        // Retransmit un-acked packets
-        for key in packetKeys {
-          if let packet = unAckedMessages[key] {
-            connection.send(
-              messageToData(message: packet.message,
-                            nextSeq: packet.seq)
-            )
-          }
+    Timer.publish(
+      every: 2, on: .main, in: .default
+    )
+    .autoconnect()
+    .sink { [unowned self] _ in
+      
+      // Handle any retransmit of un-acked packets
+      let now = Date().timeIntervalSince1970
+      let packetKeys = unAckedMessages.keys.sorted()
+        .filter({ $0 < now - ApiConsts.retransmitTimeout })
+      
+      // Remove any old un-acked packets
+      let staleKeys = packetKeys.filter({ $0 < now - 10 })
+      staleKeys.forEach({ unAckedMessages.removeValue(forKey: $0) })
+      
+      // Retransmit un-acked packets
+      for key in packetKeys {
+        if let packet = unAckedMessages[key] {
+          connection.send(
+            messageToData(message: packet.message,
+                          nextSeq: packet.seq)
+          )
         }
       }
+    }
   }
   
-  private func startConnectionHeartbeat(
-    continuation: AsyncThrowingStream<JamulusState, Error>.Continuation) -> AnyCancellable {
-      Timer.publish(every: 1, on: .main, in: .default)
-        .autoconnect()
-        .sink { [unowned self] _ in
-          switch state {
-            
-          case .connecting, .connected(_), .disconnected(_):
-            guard lastPingReceived == 0 ||
-                    lastPingReceived < lastPingSent +
-                    ApiConsts.connectionTimeout else { // No connection
-              state = .disconnected(error: .connectionTimedOut)
-              continuation.finish(throwing: JamulusError.connectionTimedOut)
-              return
-            }
-            
-            switch serverKind {
-              
-            case .mainServer:
-              connection.send(
-                messageToData(message: .ping(timeStamp: packetTimestamp),
-                              nextSeq: packetSequenceNext))
-              lastPingSent = Date().timeIntervalSince1970
-              
-            case .listing:
-              connection.send(
-                messageToData(
-                  message: .pingPlusClientCount(
-                    clientCount: 0, timeStamp: packetTimestamp
-                  ),
-                  nextSeq: packetSequenceNext
-                )
-              )
-              lastPingSent = Date().timeIntervalSince1970
-              
-            case .directoryLookup:
-              break
-            }
-            
-          case .disconnecting:
-            if lastAudioPacketTime + 0.5 < Date().timeIntervalSince1970 {
-              state = .disconnected(error: nil)
-            }
-          }
+  private func startConnectionHeartbeat() -> AnyCancellable {
+    Timer.publish(
+      every: 1, on: .main, in: .default
+    )
+    .autoconnect()
+    .sink { [unowned self] _ in
+      switch state {
+        
+      case .connecting, .connected(_), .disconnected(_):
+        guard lastPingReceived == 0 ||
+                lastPingReceived < lastPingSent +
+                ApiConsts.connectionTimeout else { // No connection
+          state = .disconnected(error: .connectionTimedOut)
+          return
         }
+        
+        switch serverKind {
+          
+        case .mainServer:
+          connection.send(
+            messageToData(message: .ping(timeStamp: packetTimestamp),
+                          nextSeq: packetSequenceNext))
+          lastPingSent = Date().timeIntervalSince1970
+          
+        case .listing:
+          connection.send(
+            messageToData(
+              message: .pingPlusClientCount(
+                clientCount: 0, timeStamp: packetTimestamp
+              ),
+              nextSeq: packetSequenceNext
+            )
+          )
+          lastPingSent = Date().timeIntervalSince1970
+          
+        case .directoryLookup:
+          break
+        }
+        
+      case .disconnecting:
+        if lastAudioPacketTime + 3 < Date().timeIntervalSince1970 {
+          state = .disconnected(error: nil)
+        }
+      }
     }
+  }
 }
