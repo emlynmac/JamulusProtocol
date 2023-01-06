@@ -3,14 +3,14 @@ import Foundation
 
 /// CRC value for jamulus messaging packets
 func jamulusCrc(for data: Data) -> UInt16 {
-  let polyNomial: UInt32 = 0x00001020
+  let polynomial: UInt32 = 0x00001020
   var result: UInt32 = ~0
   for byte in data {
     for i in 0..<8 {
       result <<= 1
       if (result & 0x10000) > 0 { result |= 1 }
       if (byte & (1 << (7 - i) )) > 0 { result ^= 1 }
-      if (result & 1) > 0 { result ^= polyNomial }
+      if (result & 1) > 0 { result ^= polynomial }
     }
   }
   result = ~result

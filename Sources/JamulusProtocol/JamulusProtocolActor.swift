@@ -1,7 +1,5 @@
-import Combine
 import Foundation
 import UdpConnection
-
 
 actor JamulusProtocolActor {
   
@@ -18,14 +16,18 @@ actor JamulusProtocolActor {
     }
   }
   
-  private var keepAlive: AnyCancellable?
+  private var keepAlive: Task<Void, Error>?
   private var stateStream: AsyncThrowingStream<JamulusState, Error>?
   private var stateContinuation: AsyncThrowingStream<JamulusState, Error>.Continuation?
   
   private var packetSequence: UInt8 = 0
-  private var packetSequenceNext: UInt8 { nextSequenceNumber(val: &packetSequence) }
+  private var packetSequenceNext: UInt8 {
+    nextSequenceNumber(val: &packetSequence)
+  }
   private var audioPacketSequence: UInt8 = 0
-  private var audioPacketSequenceNext: UInt8 { nextSequenceNumber(val: &audioPacketSequence) }
+  private var audioPacketSequenceNext: UInt8 {
+    nextSequenceNumber(val: &audioPacketSequence)
+  }
   
   // Retransmit un-acked packets
   private var unAckedMessages = [TimeInterval: (seq: UInt8, message: JamulusMessage)]()
@@ -44,9 +46,11 @@ actor JamulusProtocolActor {
   // Storage to reassemble split messages
   private var splitMessages: [UInt16: [Data?]] = [:]
   
-  init?(url: URL,
-        serverKind: ConnectionKind,
-        receiveQueue: DispatchQueue) {
+  init?(
+    url: URL,
+    serverKind: ConnectionKind,
+    receiveQueue: DispatchQueue
+  ) {
     guard let connection = UdpConnection.live(url: url, queue: receiveQueue) else {
       assertionFailure("Failed to open network connection")
       return nil
@@ -281,77 +285,75 @@ extension JamulusProtocolActor {
     }
   }
   
-  private func startRetransmitQueue() -> AnyCancellable {
-    Timer.publish(
-      every: 2, on: .main, in: .default
-    )
-    .autoconnect()
-    .sink { [unowned self] _ in
-      
-      // Handle any retransmit of un-acked packets
-      let now = Date().timeIntervalSince1970
-      let packetKeys = unAckedMessages.keys.sorted()
-        .filter({ $0 < now - ApiConsts.retransmitTimeout })
-      
-      // Remove any old un-acked packets
-      let staleKeys = packetKeys.filter({ $0 < now - 10 })
-      staleKeys.forEach({ unAckedMessages.removeValue(forKey: $0) })
-      
-      // Retransmit un-acked packets
-      for key in packetKeys {
-        if let packet = unAckedMessages[key] {
-          connection.send(
-            messageToData(message: packet.message,
-                          nextSeq: packet.seq)
-          )
+  private func startRetransmitQueue() -> Task<Void, Error> {
+    Task {
+      while !Task.isCancelled {
+        
+        // Handle any retransmit of un-acked packets
+        let now = Date().timeIntervalSince1970
+        let packetKeys = unAckedMessages.keys.sorted()
+          .filter({ $0 < now - ApiConsts.retransmitTimeout })
+        
+        // Remove any old un-acked packets
+        let staleKeys = packetKeys.filter({ $0 < now - 10 })
+        staleKeys.forEach({ unAckedMessages.removeValue(forKey: $0) })
+        
+        // Retransmit un-acked packets
+        for key in packetKeys {
+          if let packet = unAckedMessages[key] {
+            connection.send(
+              messageToData(message: packet.message,
+                            nextSeq: packet.seq)
+            )
+          }
         }
+        try await Task.sleep(nanoseconds: 2_000_000_000)
       }
     }
   }
   
-  private func startConnectionHeartbeat() -> AnyCancellable {
-    Timer.publish(
-      every: 1, on: .main, in: .default
-    )
-    .autoconnect()
-    .sink { [unowned self] _ in
-      switch state {
-        
-      case .connecting, .connected(_), .disconnected(_):
-        guard lastPingReceived == 0 ||
-                lastPingReceived < lastPingSent +
-                ApiConsts.connectionTimeout else { // No connection
-          state = .disconnected(error: .connectionTimedOut)
-          return
-        }
-        
-        switch serverKind {
+  private func startConnectionHeartbeat() -> Task<Void, Error> {
+    Task {
+      while !Task.isCancelled {
+        switch state {
           
-        case .mainServer:
-          connection.send(
-            messageToData(message: .ping(timeStamp: packetTimestamp),
-                          nextSeq: packetSequenceNext))
-          lastPingSent = Date().timeIntervalSince1970
+        case .connecting, .connected(_), .disconnected(_):
+          guard lastPingReceived == 0 ||
+                  lastPingReceived < lastPingSent +
+                  ApiConsts.connectionTimeout else { // No connection
+            state = .disconnected(error: .connectionTimedOut)
+            return
+          }
           
-        case .listing:
-          connection.send(
-            messageToData(
-              message: .pingPlusClientCount(
-                clientCount: 0, timeStamp: packetTimestamp
-              ),
-              nextSeq: packetSequenceNext
+          switch serverKind {
+            
+          case .mainServer:
+            connection.send(
+              messageToData(message: .ping(timeStamp: packetTimestamp),
+                            nextSeq: packetSequenceNext))
+            lastPingSent = Date().timeIntervalSince1970
+            
+          case .listing:
+            connection.send(
+              messageToData(
+                message: .pingPlusClientCount(
+                  clientCount: 0, timeStamp: packetTimestamp
+                ),
+                nextSeq: packetSequenceNext
+              )
             )
-          )
-          lastPingSent = Date().timeIntervalSince1970
+            lastPingSent = Date().timeIntervalSince1970
+            
+          case .directoryLookup:
+            break
+          }
           
-        case .directoryLookup:
-          break
+        case .disconnecting:
+          if lastAudioPacketTime + 3 < Date().timeIntervalSince1970 {
+            state = .disconnected(error: nil)
+          }
         }
-        
-      case .disconnecting:
-        if lastAudioPacketTime + 3 < Date().timeIntervalSince1970 {
-          state = .disconnected(error: nil)
-        }
+        try await Task.sleep(nanoseconds: 1_000_000_000)
       }
     }
   }
