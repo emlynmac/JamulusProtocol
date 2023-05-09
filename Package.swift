@@ -10,7 +10,7 @@ let package = Package(
       targets: ["JamulusProtocol"]),
   ],
   dependencies: [
-    .package(url: "https://github.com/emlynmac/udpconnection", branch: "migrate-to-async")
+    .package(url: "https://github.com/emlynmac/udpconnection", from: .init(2, 0, 0))
   ],
   targets: [
     .target(
