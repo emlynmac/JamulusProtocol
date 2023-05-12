@@ -6,7 +6,7 @@ public enum JamulusError: CustomStringConvertible, Equatable, Error {
   public var description: String {
     switch self {
     case .avAudioError(let error):
-      return error.localizedDescription
+      return error.description
     case .audioConversionFailed:
       return "Could not convert audio"
     case .connectionAlreadyExists:

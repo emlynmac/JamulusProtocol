@@ -18,6 +18,12 @@ public struct JamulusProtocol {
   -> AsyncThrowingStream<JamulusState, Error>
   
   ///
+  /// Close a connection
+  /// Must be called to cleanup a failed connection
+  /// 
+  public var close: @Sendable (String) async -> Void
+  
+  ///
   /// Receive stream for protocol messages.
   /// - Parameter id the unique identifier for this connection
   /// - Parameter audioReceive a closure to handle audio packets from the protocol layer

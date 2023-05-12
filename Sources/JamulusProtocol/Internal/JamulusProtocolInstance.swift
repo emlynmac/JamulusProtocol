@@ -100,6 +100,10 @@ actor JamulusProtocolInstance {
     }
   }
   
+  func close() {
+    self.connection.cancel()
+  }
+  
   func send(_ message: JamulusMessage) {
     // Intercept messages for some protocol aspects
     switch message {

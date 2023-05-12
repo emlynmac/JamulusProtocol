@@ -12,6 +12,10 @@ final class JamulusProtocolTests: XCTestCase {
             JamulusState.connected(clientId: 69)
           }
         },
+        close: { id in
+          // Disconnect
+          // Cleanup the connection
+        },
         receive: { id, audioCallback in
           AsyncThrowingStream(
             unfolding: {
@@ -24,7 +28,7 @@ final class JamulusProtocolTests: XCTestCase {
         send: { id, message in
           print("Received message: \(message)")
         },
-        sendAudio: { id, _, _ in
+        sendAudio: { id, data, useSeqNumber in
           // Code to get audio and send
         }
       )

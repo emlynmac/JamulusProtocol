@@ -14,6 +14,9 @@ extension JamulusProtocol {
       open: {
         try await JamulusProtocolActor.shared.open(id: $0, url: $1, kind: $2)
       },
+      close: {
+        await JamulusProtocolActor.shared.close(id: $0)
+      },
       receive: {
         try await JamulusProtocolActor.shared.receive(id: $0, audioCallback: $1)
       },
@@ -55,6 +58,14 @@ extension JamulusProtocol {
       self.connectionData[id] = instance
       
       return try await instance.open()
+    }
+    
+    func close(id: String) async {
+      guard let connectionDetails = self.connectionData[id],
+            await connectionDetails.state != .disconnecting else { return }
+      
+      await connectionDetails.close()
+      self.connectionData[id] = nil
     }
     
     func send(id: String, message: JamulusMessage) async {
