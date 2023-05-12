@@ -2,7 +2,7 @@ import Foundation
 
 public enum Instrument: UInt32,
                         CustomStringConvertible,
-                        CaseIterable, Identifiable {
+                        CaseIterable, Identifiable, Sendable {
   public var id: Int { Int(rawValue) }
   
   public static var alphabetized: [Instrument] {

@@ -10,13 +10,15 @@ let package = Package(
       targets: ["JamulusProtocol"]),
   ],
   dependencies: [
-    .package(url: "https://github.com/emlynmac/udpconnection", from: .init(2, 0, 0))
+    .package(url: "https://github.com/emlynmac/udpconnection", from: .init(2, 0, 0)),
+    .package(url: "https://github.com/pointfreeco/swift-dependencies", from: .init(0, 5, 0)),
   ],
   targets: [
     .target(
       name: "JamulusProtocol",
       dependencies: [
-        .product(name: "UdpConnection", package: "udpconnection")
+        .product(name: "UdpConnection", package: "udpconnection"),
+        .product(name: "Dependencies", package: "swift-dependencies")
       ]),
     .testTarget(
       name: "JamulusProtocolTests",

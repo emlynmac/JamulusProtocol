@@ -1,7 +1,8 @@
 
 import Foundation
 
-public struct ServerDetail: CustomStringConvertible, Equatable, Identifiable {
+public struct ServerDetail: CustomStringConvertible, Equatable, Identifiable,
+                              Sendable {
   
   public init(name: String,
               ipAddress: String,

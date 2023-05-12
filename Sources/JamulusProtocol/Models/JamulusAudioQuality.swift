@@ -1,7 +1,7 @@
 
 import Foundation
 
-public enum JamulusAudioQuality: String, CaseIterable, Hashable {
+public enum JamulusAudioQuality: String, CaseIterable, Hashable, Sendable {
   case low
   case normal
   case high

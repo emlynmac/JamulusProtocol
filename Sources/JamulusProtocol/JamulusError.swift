@@ -9,6 +9,8 @@ public enum JamulusError: CustomStringConvertible, Equatable, Error {
       return error.localizedDescription
     case .audioConversionFailed:
       return "Could not convert audio"
+    case .connectionAlreadyExists:
+      return "Connection already open"
     case .connectionTimedOut:
       return "Server no longer available"
     case .bufferOverrun:
@@ -35,6 +37,7 @@ public enum JamulusError: CustomStringConvertible, Equatable, Error {
   }
   
   case avAudioError(NSError)
+  case connectionAlreadyExists
   case connectionTimedOut
   case bufferOverrun
   case invalidAudioConfiguration

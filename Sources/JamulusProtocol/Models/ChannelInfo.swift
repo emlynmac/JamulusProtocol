@@ -1,7 +1,7 @@
 
 import Foundation
 
-public struct ChannelInfo: Equatable {
+public struct ChannelInfo: Equatable, Sendable {
   public init(channelId: UInt8,
               countryId: UInt16,
               instrument: Instrument,

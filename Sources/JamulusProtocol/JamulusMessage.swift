@@ -4,7 +4,7 @@ import Foundation
 ///
 /// Jamulus Protocol messages
 ///
-public enum JamulusMessage: Equatable {
+public enum JamulusMessage: Equatable, Sendable {
   // MARK: - Connection Setup and Teardown
   /// Tell the client their channel ID on connection
   case clientId(id: UInt8)

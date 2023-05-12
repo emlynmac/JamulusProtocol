@@ -85,33 +85,3 @@ func parseData(data: Data, defaultHost: String) -> JamulusPacket {
   }
   return .error(JamulusError.invalidPacket(data))
 }
-
-///
-/// Takes a partial message and stores for reassembly. If a complete message,
-/// emits the data and removes the temporary storage
-///
-func handleSplitMessage(id: UInt16, total: Int, part: Int,
-                        payload: Data,
-                        storage: inout [UInt16: [Data?]]) -> Data? {
-  if storage[id] != nil {
-    assert(part < storage[id]!.count)
-    storage[id]?[part] = payload
-  } else {
-    // No existing reconstruction, start building
-    var completePacket = [Data?](repeating: nil, count: total)
-    completePacket[part] = payload
-    storage[id] = completePacket
-  }
-  
-  if let parts = storage[id] {
-    var message = Data()
-    for part in parts {
-      guard part != nil else { return nil }
-      message.append(part)
-    }
-    storage.removeValue(forKey: id)
-    return message
-  }
-  
-  return nil
-}

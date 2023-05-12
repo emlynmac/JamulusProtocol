@@ -4,31 +4,36 @@ import XCTest
 @testable import JamulusProtocol
 
 final class JamulusProtocolTests: XCTestCase {
-    func testExample() throws {
+    func testConstruction() throws {
       
       let test = JamulusProtocol.init(
-        open: {
+        open: { id, url, kind in
           AsyncThrowingStream {
             JamulusState.connected(clientId: 69)
           }
         },
-        receivedData: AsyncStream(
-          unfolding: {
-            .messageNeedingAck(
+        receive: { id, audioCallback in
+          AsyncThrowingStream(
+            unfolding: {
               .clientList(
                 channelInfo: []
-              ),
-              69
-            )
-          }),
-        send: { message in
+              )
+            }
+          )
+        },
+        send: { id, message in
           print("Received message: \(message)")
         },
-        sendAudio: { _, _ in
+        sendAudio: { id, _, _ in
           // Code to get audio and send
         }
       )
       
       XCTAssertNotNil(test)
     }
+  
+  func testLiveConstruction() async throws {
+    let live = JamulusProtocol.live
+    XCTAssertNotNil(live)
+  }
 }

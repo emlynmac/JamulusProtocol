@@ -22,7 +22,7 @@ public enum ApiConsts {
 /// These are the payload sizes for the Opus packets
 /// AudioTransportDetails defines the transport for the audio network layer
 ///
-public enum OpusCompressedSize: UInt32 {
+public enum OpusCompressedSize: UInt32, Sendable {
   case monoLowQuality = 12
   case monoNormal = 22
   case monoHighQuality = 36
@@ -38,7 +38,7 @@ public enum OpusCompressedSize: UInt32 {
   case stereoHighQualityDouble = 165
 }
 
-public struct ChannelPan: Equatable {
+public struct ChannelPan: Equatable, Sendable {
   public static let left: UInt16 = 0
   public static let center: UInt16 = UInt16(Int16.max/2)
   public static let right: UInt16 = UInt16(Int16.max)
@@ -46,7 +46,7 @@ public struct ChannelPan: Equatable {
   var pan: UInt16 = ChannelPan.center
 }
 
-public enum JamulusAudioCodec: UInt16, Identifiable {
+public enum JamulusAudioCodec: UInt16, Identifiable, Sendable {
   public var id: Self { self }
   
   case raw = 0
@@ -55,12 +55,12 @@ public enum JamulusAudioCodec: UInt16, Identifiable {
   case opus64 = 3
 }
 
-public enum AudioFrameFactor: UInt16 {
+public enum AudioFrameFactor: UInt16, Sendable {
   case normal = 1
   case safe = 2
 }
 
-public enum OsType: UInt8, CustomStringConvertible {
+public enum OsType: UInt8, CustomStringConvertible, Sendable {
   public var description: String {
     switch self {
     case .windows: return "Windows"
@@ -80,7 +80,7 @@ public enum OsType: UInt8, CustomStringConvertible {
   case unix = 5
 }
 
-public enum RecorderState: UInt8 {
+public enum RecorderState: UInt8, Sendable {
     case unknown = 0
     case notInitialized = 1
     case disabled = 2

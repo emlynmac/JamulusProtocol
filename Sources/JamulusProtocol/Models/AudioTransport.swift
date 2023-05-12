@@ -5,7 +5,7 @@ import Foundation
 /// Provider of details for the audio transport layer for the jamulus protocol
 /// Used to set up the Opus audio coder
 ///
-public struct AudioTransportDetails: Equatable {
+public struct AudioTransportDetails: Equatable, Sendable {
   
   public init(
     packetSize: OpusCompressedSize = .stereoNormalDouble,
