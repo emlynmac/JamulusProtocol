@@ -117,7 +117,7 @@ actor JamulusProtocolInstance {
 
     let sequenceNumber = packetSequenceNext
     if message.needsAck { // Store message, remove when acked
-      unAckedMessages[Date().timeIntervalSince1970] = (packetSequenceNext, message)
+      unAckedMessages[Date().timeIntervalSince1970] = (sequenceNumber, message)
     }
 
     let data = messageToData(message: message, nextSeq: sequenceNumber)
