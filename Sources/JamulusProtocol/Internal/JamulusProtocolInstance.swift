@@ -29,6 +29,7 @@ actor JamulusProtocolInstance {
   var keepAlive: Task<Void, Error>?
   var unAckedMessages = [TimeInterval: (seq: UInt8, message: JamulusMessage)]()
   var retransmitQueue: Task<Void, Error>?
+  var disconnectTask: Task<Void, Error>?
   
   // Timing and sequencing
   var lastAudioPacketTime: TimeInterval = 0
@@ -88,8 +89,9 @@ actor JamulusProtocolInstance {
             break
           }
         } // Await loop on UDPConnection state
-        
+#if DEBUG
         print("KeepAlive and connection cancel")
+#endif
         keepAlive?.cancel()
         connection.cancel()
       }
@@ -239,18 +241,9 @@ actor JamulusProtocolInstance {
 
     case .audio:
       if state == .disconnecting {
-        let now = Date().timeIntervalSince1970
-        if now - lastAudioPacketTime < 0.2 {
-          // Keep sending a disconnect message until the audio stops
-          lastAudioPacketTime = now
-          connection.send(
-            messageToData(
-              message: .disconnect,
-              nextSeq: packetSequenceNext
-            )
-          )
-        } else {
-          state = .disconnected()
+        lastAudioPacketTime = Date().timeIntervalSince1970
+        if self.disconnectTask == nil {
+          startDisconnectTask()
         }
         return nil // Don't send this packet up
       }
@@ -367,6 +360,27 @@ actor JamulusProtocolInstance {
           }
         }
         try await Task.sleep(nanoseconds: 1_000_000_000)
+      }
+    }
+  }
+  
+  private func startDisconnectTask() {
+    self.disconnectTask = Task {
+      while !Task.isCancelled {
+        let now = Date().timeIntervalSince1970
+        if now - lastAudioPacketTime < 0.2 {
+          // Keep sending a disconnect message until the audio stops
+          connection.send(
+            messageToData(
+              message: .disconnect,
+              nextSeq: packetSequenceNext
+            )
+          )
+          try? await Task.sleep(nanoseconds: 300000)
+        } else {
+          state = .disconnected()
+          break
+        }
       }
     }
   }
