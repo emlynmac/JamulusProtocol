@@ -11,7 +11,7 @@ let package = Package(
   ],
   dependencies: [
     .package(url: "https://github.com/emlynmac/udpconnection", from: .init(2, 0, 0)),
-    .package(url: "https://github.com/pointfreeco/swift-dependencies", from: .init(0, 5, 0)),
+    .package(url: "https://github.com/pointfreeco/swift-dependencies", from: .init(1, 0, 0)),
   ],
   targets: [
     .target(
