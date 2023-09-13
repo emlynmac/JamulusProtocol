@@ -12,8 +12,6 @@ let package = Package(
   dependencies: [
     .package(url: "https://github.com/emlynmac/udpconnection", from: .init(2, 0, 0)),
     .package(url: "https://github.com/pointfreeco/swift-dependencies", from: .init(1, 0, 0)),
-    .package(url: "https://github.com/pointfreeco/swift-clocks", from: .init(1, 0, 0)),
-    .package(url: "https://github.com/pointfreeco/xctest-dynamic-overlay", from: .init(1, 0, 0)),
   ],
   targets: [
     .target(
@@ -21,7 +19,6 @@ let package = Package(
       dependencies: [
         .product(name: "UdpConnection", package: "udpconnection"),
         .product(name: "Dependencies", package: "swift-dependencies"),
-        .product(name: "Clocks", package: "swift-clocks")
       ]),
     .testTarget(
       name: "JamulusProtocolTests",
